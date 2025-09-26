@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Damage Tracker</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f5f5f5;
+      color: #222;
+    }
+
+    body {
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #f0f4ff, #e3f8ff);
+    }
+
+    .app {
+      margin: 4rem 1.5rem;
+      padding: 2.5rem;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 25px 45px rgba(0, 0, 0, 0.1);
+      max-width: 520px;
+      width: 100%;
+    }
+
+    h1 {
+      text-align: center;
+      margin-top: 0;
+      margin-bottom: 1.5rem;
+      font-size: 2rem;
+      letter-spacing: 0.05em;
+      color: #274060;
+    }
+
+    .total {
+      background-color: #274060;
+      color: #f7faff;
+      border-radius: 12px;
+      padding: 1.25rem;
+      text-align: center;
+      margin-bottom: 1.75rem;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .total span {
+      display: block;
+      font-size: 2.5rem;
+      font-variant-numeric: tabular-nums;
+      margin-top: 0.5rem;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .input-row input[type="text"] {
+      flex: 1;
+      padding: 0.85rem 1rem;
+      border: 2px solid #cfd8e3;
+      border-radius: 10px;
+      font-size: 1rem;
+      transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+
+    .input-row input[type="text"]:focus {
+      border-color: #5176ff;
+      box-shadow: 0 0 0 3px rgba(81, 118, 255, 0.2);
+      outline: none;
+    }
+
+    button {
+      padding: 0.85rem 1.25rem;
+      background: #5176ff;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 20px rgba(81, 118, 255, 0.25);
+      background: #4063f0;
+    }
+
+    button.secondary {
+      background: #ecf1ff;
+      color: #274060;
+    }
+
+    button.secondary:hover {
+      background: #d7e2ff;
+      box-shadow: 0 8px 16px rgba(39, 64, 96, 0.15);
+    }
+
+    .controls {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      margin-bottom: 1.75rem;
+    }
+
+    .history {
+      background: #f4f7ff;
+      border-radius: 12px;
+      padding: 1.25rem;
+      max-height: 320px;
+      overflow-y: auto;
+      border: 1px solid #d7e1f5;
+    }
+
+    .history h2 {
+      margin: 0 0 0.75rem;
+      font-size: 1.1rem;
+      color: #274060;
+    }
+
+    .history ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 0.6rem;
+    }
+
+    .history li {
+      background: #ffffff;
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-left: 5px solid transparent;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .history li.damage {
+      border-color: #ff6363;
+    }
+
+    .history li.heal {
+      border-color: #55c28d;
+    }
+
+    .history li .label {
+      font-size: 0.9rem;
+      color: #5b6b82;
+    }
+
+    .history li .value {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #274060;
+    }
+
+    .empty-message {
+      text-align: center;
+      color: #7b8ba5;
+      font-style: italic;
+    }
+
+    .error {
+      color: #c62828;
+      margin-top: -0.5rem;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+      display: none;
+    }
+
+    @media (max-width: 520px) {
+      .app {
+        margin: 2rem 1rem;
+        padding: 1.75rem;
+      }
+
+      .input-row {
+        flex-direction: column;
+      }
+
+      .controls {
+        justify-content: stretch;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app" aria-labelledby="title">
+    <h1 id="title">Damage Tracker</h1>
+    <section class="total" aria-live="polite">
+      Total Damage
+      <span id="total-damage">0</span>
+    </section>
+
+    <div class="input-row">
+      <input
+        id="damage-input"
+        type="text"
+        autocomplete="off"
+        inputmode="decimal"
+        placeholder="Enter damage (e.g. 8 or +5 to heal)"
+        aria-label="Damage value"
+      />
+      <button id="add-button" type="button">Add</button>
+    </div>
+    <p id="error" class="error" role="alert">Please enter a valid number.</p>
+
+    <div class="controls">
+      <button id="undo-button" class="secondary" type="button">Undo</button>
+      <button id="reset-button" class="secondary" type="button">Reset</button>
+    </div>
+
+    <section class="history" aria-live="polite">
+      <h2>History</h2>
+      <ul id="history-list"></ul>
+      <p id="empty-message" class="empty-message">No damage recorded yet.</p>
+    </section>
+  </main>
+
+  <script>
+    const damageInput = document.getElementById('damage-input');
+    const addButton = document.getElementById('add-button');
+    const undoButton = document.getElementById('undo-button');
+    const resetButton = document.getElementById('reset-button');
+    const totalDisplay = document.getElementById('total-damage');
+    const historyList = document.getElementById('history-list');
+    const emptyMessage = document.getElementById('empty-message');
+    const errorMessage = document.getElementById('error');
+
+    const history = [];
+    let totalDamage = 0;
+    const DECIMAL_FACTOR = 10000;
+    const numberFormatter = new Intl.NumberFormat(undefined, {
+      maximumFractionDigits: 4,
+    });
+
+    function parseEntry(rawValue) {
+      if (!rawValue) {
+        return null;
+      }
+
+      const isHeal = rawValue.startsWith('+');
+      const normalized = isHeal ? rawValue.slice(1) : rawValue;
+      const numericValue = parseFloat(normalized);
+
+      if (Number.isNaN(numericValue)) {
+        return null;
+      }
+
+      return {
+        raw: rawValue,
+        magnitude: numericValue,
+        isHeal,
+        effective: isHeal ? -numericValue : numericValue,
+      };
+    }
+
+    function formatNumber(value) {
+      return numberFormatter.format(value);
+    }
+
+    function normalizeTotal(value) {
+      const normalized = Math.round(value * DECIMAL_FACTOR) / DECIMAL_FACTOR;
+      return Math.abs(normalized) < 1e-9 ? 0 : normalized;
+    }
+
+    function adjustTotal(delta) {
+      totalDamage = normalizeTotal(totalDamage + delta);
+    }
+
+    function updateTotalDisplay() {
+      totalDisplay.textContent = formatNumber(totalDamage);
+    }
+
+    function renderHistory() {
+      historyList.innerHTML = '';
+
+      if (history.length === 0) {
+        emptyMessage.style.display = 'block';
+        return;
+      }
+
+      emptyMessage.style.display = 'none';
+
+      history.forEach((entry, index) => {
+        const item = document.createElement('li');
+        item.classList.add(entry.isHeal ? 'heal' : 'damage');
+
+        const label = document.createElement('span');
+        label.className = 'label';
+        label.textContent = `${entry.isHeal ? 'Heal' : 'Damage'} #${index + 1}`;
+
+        const value = document.createElement('span');
+        value.className = 'value';
+        value.textContent = entry.raw;
+
+        item.append(label, value);
+        historyList.appendChild(item);
+      });
+    }
+
+    function showError(message) {
+      errorMessage.textContent = message;
+      errorMessage.style.display = 'block';
+    }
+
+    function clearError() {
+      errorMessage.style.display = 'none';
+    }
+
+    function addEntry() {
+      const rawValue = damageInput.value.trim();
+      const entry = parseEntry(rawValue);
+
+      if (!entry) {
+        showError('Please enter a valid number.');
+        return;
+      }
+
+      clearError();
+      history.push(entry);
+      adjustTotal(entry.effective);
+      updateTotalDisplay();
+      renderHistory();
+
+      damageInput.value = '';
+      damageInput.focus();
+    }
+
+    function undoLastEntry() {
+      const lastEntry = history.pop();
+      if (!lastEntry) {
+        return;
+      }
+
+      adjustTotal(-lastEntry.effective);
+      updateTotalDisplay();
+      renderHistory();
+    }
+
+    function resetAll() {
+      history.length = 0;
+      totalDamage = 0;
+      updateTotalDisplay();
+      renderHistory();
+      clearError();
+      damageInput.value = '';
+      damageInput.focus();
+    }
+
+    addButton.addEventListener('click', addEntry);
+
+    damageInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        addEntry();
+      }
+    });
+
+    undoButton.addEventListener('click', undoLastEntry);
+    resetButton.addEventListener('click', resetAll);
+
+    renderHistory();
+    updateTotalDisplay();
+    damageInput.focus();
+  </script>
+</body>
+</html>
