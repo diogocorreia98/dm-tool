@@ -43,18 +43,41 @@
       background-color: #274060;
       color: #f7faff;
       border-radius: 12px;
-      padding: 1.25rem;
-      text-align: center;
+      padding: 1.5rem;
       margin-bottom: 1.75rem;
-      font-size: 1.25rem;
-      font-weight: 600;
     }
 
-    .total span {
+    .total h2 {
+      margin: 0 0 1rem;
+      font-size: 1.5rem;
+      letter-spacing: 0.04em;
+    }
+
+    .total-metrics {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    }
+
+    .metric {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+    }
+
+    .metric .metric-label {
       display: block;
-      font-size: 2.5rem;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(247, 250, 255, 0.8);
+      margin-bottom: 0.35rem;
+    }
+
+    .metric .metric-value {
+      font-size: 2rem;
       font-variant-numeric: tabular-nums;
-      margin-top: 0.5rem;
+      font-weight: 700;
     }
 
     .input-row {
@@ -112,6 +135,83 @@
       justify-content: flex-end;
       flex-wrap: wrap;
       margin-bottom: 1.75rem;
+    }
+
+    .monster-manager {
+      margin-bottom: 1.75rem;
+    }
+
+    .tabs-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      overflow-x: auto;
+      padding-bottom: 0.25rem;
+    }
+
+    .tabs {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .tab {
+      padding: 0.6rem 1rem;
+      border-radius: 999px;
+      border: none;
+      background: #ecf1ff;
+      color: #274060;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .tab[aria-selected='true'] {
+      background: #5176ff;
+      color: #fff;
+      box-shadow: 0 12px 24px rgba(81, 118, 255, 0.25);
+    }
+
+    .tab:focus-visible {
+      outline: 3px solid rgba(81, 118, 255, 0.4);
+      outline-offset: 2px;
+    }
+
+    .tab:hover {
+      transform: translateY(-1px);
+    }
+
+    .monster-form {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: 1fr 1fr auto;
+      align-items: center;
+    }
+
+    .monster-form input[type='text'] {
+      padding: 0.75rem 1rem;
+      border: 2px solid #cfd8e3;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+
+    .monster-form input[type='text']:focus {
+      border-color: #5176ff;
+      box-shadow: 0 0 0 3px rgba(81, 118, 255, 0.2);
+      outline: none;
+    }
+
+    .monster-form button {
+      white-space: nowrap;
+    }
+
+    .monster-form .error {
+      grid-column: 1 / -1;
+      margin: 0;
     }
 
     .history {
@@ -181,6 +281,16 @@
       display: none;
     }
 
+    @media (max-width: 720px) {
+      .monster-form {
+        grid-template-columns: 1fr;
+      }
+
+      .monster-form button {
+        width: 100%;
+      }
+    }
+
     @media (max-width: 520px) {
       .app {
         margin: 2rem 1rem;
@@ -204,9 +314,43 @@
 <body>
   <main class="app" aria-labelledby="title">
     <h1 id="title">Damage Tracker</h1>
+    <section class="monster-manager" aria-label="Monster selection">
+      <div class="tabs-container">
+        <div id="monster-tabs" class="tabs" role="tablist" aria-label="Monsters"></div>
+      </div>
+      <div class="monster-form">
+        <input
+          id="monster-name-input"
+          type="text"
+          autocomplete="off"
+          placeholder="Monster name (optional)"
+          aria-label="Monster name (optional)"
+        />
+        <input
+          id="monster-hp-input"
+          type="text"
+          inputmode="decimal"
+          autocomplete="off"
+          placeholder="Full HP (optional)"
+          aria-label="Full HP (optional)"
+        />
+        <button id="add-monster-button" type="button">Add Monster</button>
+        <p id="monster-form-error" class="error" role="alert"></p>
+      </div>
+    </section>
+
     <section class="total" aria-live="polite">
-      Total Damage
-      <span id="total-damage">0</span>
+      <h2 id="monster-name-display">Monster #1</h2>
+      <div class="total-metrics">
+        <div class="metric">
+          <span class="metric-label">Total Damage</span>
+          <span id="total-damage" class="metric-value">0</span>
+        </div>
+        <div id="remaining-hp-wrapper" class="metric" hidden>
+          <span class="metric-label">Remaining HP</span>
+          <span id="remaining-hp" class="metric-value">0</span>
+        </div>
+      </div>
     </section>
 
     <div class="input-row">
@@ -240,16 +384,26 @@
     const undoButton = document.getElementById('undo-button');
     const resetButton = document.getElementById('reset-button');
     const totalDisplay = document.getElementById('total-damage');
+    const remainingHpDisplay = document.getElementById('remaining-hp');
+    const remainingHpWrapper = document.getElementById('remaining-hp-wrapper');
     const historyList = document.getElementById('history-list');
     const emptyMessage = document.getElementById('empty-message');
     const errorMessage = document.getElementById('error');
+    const monsterTabs = document.getElementById('monster-tabs');
+    const monsterNameInput = document.getElementById('monster-name-input');
+    const monsterHpInput = document.getElementById('monster-hp-input');
+    const addMonsterButton = document.getElementById('add-monster-button');
+    const monsterFormError = document.getElementById('monster-form-error');
+    const monsterNameDisplay = document.getElementById('monster-name-display');
 
-    const history = [];
-    let totalDamage = 0;
     const DECIMAL_FACTOR = 10000;
     const numberFormatter = new Intl.NumberFormat(undefined, {
       maximumFractionDigits: 4,
     });
+
+    const monsters = [];
+    let activeMonsterId = null;
+    let monsterCounter = 0;
 
     function parseEntry(rawValue) {
       if (!rawValue) {
@@ -281,25 +435,99 @@
       return Math.abs(normalized) < 1e-9 ? 0 : normalized;
     }
 
-    function adjustTotal(delta) {
-      totalDamage = normalizeTotal(totalDamage + delta);
+    function getActiveMonster() {
+      return monsters.find((monster) => monster.id === activeMonsterId) ?? null;
     }
 
-    function updateTotalDisplay() {
-      totalDisplay.textContent = formatNumber(totalDamage);
+    function createMonster({ name, fullHp }) {
+      monsterCounter += 1;
+      const trimmedName = (name ?? '').trim();
+      const monsterName = trimmedName || `Monster #${monsterCounter}`;
+      const sanitizedFullHp = typeof fullHp === 'number' ? normalizeTotal(fullHp) : null;
+
+      return {
+        id: `monster-${monsterCounter}`,
+        name: monsterName,
+        fullHp: sanitizedFullHp,
+        history: [],
+        totalDamage: 0,
+      };
     }
 
-    function renderHistory() {
+    function ensureActiveMonster() {
+      if (monsters.length === 0) {
+        activeMonsterId = null;
+        return null;
+      }
+
+      const current = getActiveMonster();
+      if (current) {
+        return current;
+      }
+
+      activeMonsterId = monsters[0].id;
+      return monsters[0];
+    }
+
+    function renderTabs() {
+      const activeMonster = ensureActiveMonster();
+
+      monsterTabs.innerHTML = '';
+
+      monsters.forEach((monster) => {
+        const isActive = activeMonster && monster.id === activeMonster.id;
+        const tab = document.createElement('button');
+        tab.type = 'button';
+        tab.className = 'tab';
+        tab.setAttribute('role', 'tab');
+        tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        tab.setAttribute('tabindex', isActive ? '0' : '-1');
+        tab.textContent = monster.name;
+        tab.addEventListener('click', () => {
+          if (monster.id !== activeMonsterId) {
+            activeMonsterId = monster.id;
+            renderTabs();
+            refreshActiveMonster();
+          }
+        });
+        monsterTabs.appendChild(tab);
+      });
+    }
+
+    function updateTotalDisplay(monster) {
+      totalDisplay.textContent = formatNumber(monster.totalDamage);
+    }
+
+    function updateHpDisplay(monster) {
+      if (monster.fullHp == null) {
+        remainingHpWrapper.hidden = true;
+        return;
+      }
+
+      const remaining = normalizeTotal(monster.fullHp - monster.totalDamage);
+      const clamped = Math.max(Math.min(remaining, monster.fullHp), 0);
+      remainingHpDisplay.textContent = `${formatNumber(clamped)} / ${formatNumber(monster.fullHp)}`;
+      remainingHpWrapper.hidden = false;
+    }
+
+    function updateMonsterSummary(monster) {
+      monsterNameDisplay.textContent = monster.name;
+      updateTotalDisplay(monster);
+      updateHpDisplay(monster);
+    }
+
+    function renderHistory(monster) {
       historyList.innerHTML = '';
 
-      if (history.length === 0) {
+      if (!monster || monster.history.length === 0) {
+        emptyMessage.textContent = monster ? `No damage recorded for ${monster.name} yet.` : 'Add a monster to begin tracking damage.';
         emptyMessage.style.display = 'block';
         return;
       }
 
       emptyMessage.style.display = 'none';
 
-      history.forEach((entry, index) => {
+      monster.history.forEach((entry, index) => {
         const item = document.createElement('li');
         item.classList.add(entry.isHeal ? 'heal' : 'damage');
 
@@ -316,6 +544,22 @@
       });
     }
 
+    function refreshActiveMonster() {
+      const activeMonster = ensureActiveMonster();
+
+      if (!activeMonster) {
+        monsterNameDisplay.textContent = 'No monster selected';
+        totalDisplay.textContent = formatNumber(0);
+        remainingHpWrapper.hidden = true;
+        renderHistory(null);
+        return;
+      }
+
+      updateMonsterSummary(activeMonster);
+      renderHistory(activeMonster);
+      clearError();
+    }
+
     function showError(message) {
       errorMessage.textContent = message;
       errorMessage.style.display = 'block';
@@ -325,7 +569,17 @@
       errorMessage.style.display = 'none';
     }
 
+    function adjustTotal(monster, delta) {
+      monster.totalDamage = normalizeTotal(monster.totalDamage + delta);
+    }
+
     function addEntry() {
+      const activeMonster = getActiveMonster();
+      if (!activeMonster) {
+        showError('Please add a monster before tracking damage.');
+        return;
+      }
+
       const rawValue = damageInput.value.trim();
       const entry = parseEntry(rawValue);
 
@@ -335,33 +589,81 @@
       }
 
       clearError();
-      history.push(entry);
-      adjustTotal(entry.effective);
-      updateTotalDisplay();
-      renderHistory();
+      activeMonster.history.push(entry);
+      adjustTotal(activeMonster, entry.effective);
+      updateMonsterSummary(activeMonster);
+      renderHistory(activeMonster);
 
       damageInput.value = '';
       damageInput.focus();
     }
 
     function undoLastEntry() {
-      const lastEntry = history.pop();
+      const activeMonster = getActiveMonster();
+      if (!activeMonster) {
+        return;
+      }
+
+      const lastEntry = activeMonster.history.pop();
       if (!lastEntry) {
         return;
       }
 
-      adjustTotal(-lastEntry.effective);
-      updateTotalDisplay();
-      renderHistory();
+      adjustTotal(activeMonster, -lastEntry.effective);
+      updateMonsterSummary(activeMonster);
+      renderHistory(activeMonster);
     }
 
-    function resetAll() {
-      history.length = 0;
-      totalDamage = 0;
-      updateTotalDisplay();
-      renderHistory();
+    function resetCurrentMonster() {
+      const activeMonster = getActiveMonster();
+      if (!activeMonster) {
+        return;
+      }
+
+      activeMonster.history.length = 0;
+      activeMonster.totalDamage = 0;
+      updateMonsterSummary(activeMonster);
+      renderHistory(activeMonster);
       clearError();
       damageInput.value = '';
+      damageInput.focus();
+    }
+
+    function showMonsterFormError(message) {
+      monsterFormError.textContent = message;
+      monsterFormError.style.display = 'block';
+    }
+
+    function clearMonsterFormError() {
+      monsterFormError.textContent = '';
+      monsterFormError.style.display = 'none';
+    }
+
+    function handleAddMonster() {
+      const name = monsterNameInput.value;
+      const rawFullHp = monsterHpInput.value.trim();
+
+      let parsedFullHp = null;
+      if (rawFullHp) {
+        const numericValue = parseFloat(rawFullHp);
+        if (Number.isNaN(numericValue) || numericValue <= 0) {
+          showMonsterFormError('Please enter a positive number for full HP.');
+          monsterHpInput.focus();
+          return;
+        }
+        parsedFullHp = numericValue;
+      }
+
+      clearMonsterFormError();
+
+      const monster = createMonster({ name, fullHp: parsedFullHp });
+      monsters.push(monster);
+      activeMonsterId = monster.id;
+      renderTabs();
+      refreshActiveMonster();
+
+      monsterNameInput.value = '';
+      monsterHpInput.value = '';
       damageInput.focus();
     }
 
@@ -375,11 +677,24 @@
     });
 
     undoButton.addEventListener('click', undoLastEntry);
-    resetButton.addEventListener('click', resetAll);
+    resetButton.addEventListener('click', resetCurrentMonster);
+    addMonsterButton.addEventListener('click', handleAddMonster);
 
-    renderHistory();
-    updateTotalDisplay();
-    damageInput.focus();
+    monsterNameInput.addEventListener('input', clearMonsterFormError);
+    monsterHpInput.addEventListener('input', clearMonsterFormError);
+
+    const handleMonsterFormKeydown = (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        handleAddMonster();
+      }
+    };
+
+    monsterNameInput.addEventListener('keydown', handleMonsterFormKeydown);
+    monsterHpInput.addEventListener('keydown', handleMonsterFormKeydown);
+
+    // Initialize with a default monster tab.
+    handleAddMonster();
   </script>
 </body>
 </html>
