@@ -708,7 +708,10 @@
     <div class="controls">
       <button id="undo-button" class="secondary" type="button">Undo</button>
       <button id="reset-button" class="secondary" type="button">Reset</button>
+      <button id="export-button" class="secondary" type="button">Export Encounter</button>
+      <button id="import-button" class="secondary" type="button">Import Encounter</button>
     </div>
+    <input id="import-input" type="file" accept="application/json" hidden />
 
     <section class="history" aria-live="polite">
       <h2>History</h2>
@@ -1119,6 +1122,9 @@
     const addButton = document.getElementById('add-button');
     const undoButton = document.getElementById('undo-button');
     const resetButton = document.getElementById('reset-button');
+    const exportButton = document.getElementById('export-button');
+    const importButton = document.getElementById('import-button');
+    const importInput = document.getElementById('import-input');
     const totalDisplay = document.getElementById('total-damage');
     const remainingHpDisplay = document.getElementById('remaining-hp');
     const remainingHpWrapper = document.getElementById('remaining-hp-wrapper');
@@ -1160,6 +1166,177 @@
     function normalizeTotal(value) {
       const normalized = Math.round(value * DECIMAL_FACTOR) / DECIMAL_FACTOR;
       return Math.abs(normalized) < 1e-9 ? 0 : normalized;
+    }
+
+    function buildEncounterState() {
+      return {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        encounterStarted: !hpApp.hidden,
+        combatantCounter,
+        combatants: combatants.map((combatant) => ({
+          id: combatant.id,
+          name: combatant.name,
+          type: combatant.type,
+          initiative: combatant.initiative,
+          details: combatant.details,
+        })),
+        activeCombatantId,
+        npcCounter,
+        npcs: npcs.map((npc) => ({
+          id: npc.id,
+          name: npc.name,
+          fullHp: npc.fullHp,
+          totalDamage: npc.totalDamage,
+          history: npc.history.map((entry) => ({
+            raw: entry.raw,
+            magnitude: entry.magnitude,
+            isHeal: entry.isHeal,
+            effective: entry.effective,
+          })),
+        })),
+        activeNpcId,
+      };
+    }
+
+    function applyEncounterState(rawState) {
+      if (!rawState || typeof rawState !== 'object') {
+        throw new Error('Encounter data is not in a recognized format.');
+      }
+
+      const encounterStarted = Boolean(rawState.encounterStarted);
+
+      const sanitizedCombatants = Array.isArray(rawState.combatants)
+        ? rawState.combatants
+            .map((entry) => {
+              const id = Number(entry?.id);
+              const initiative = Number(entry?.initiative);
+              if (!Number.isFinite(id) || !Number.isFinite(initiative)) {
+                return null;
+              }
+
+              return {
+                id,
+                name: typeof entry?.name === 'string' ? entry.name : '',
+                type: typeof entry?.type === 'string' ? entry.type : 'Unknown',
+                initiative,
+                details: typeof entry?.details === 'string' ? entry.details : '',
+              };
+            })
+            .filter(Boolean)
+        : [];
+
+      const sanitizedNpcs = Array.isArray(rawState.npcs)
+        ? rawState.npcs
+            .map((npcEntry) => {
+              const id = Number(npcEntry?.id);
+              if (!Number.isFinite(id)) {
+                return null;
+              }
+
+              const history = Array.isArray(npcEntry?.history)
+                ? npcEntry.history
+                    .map((historyEntry) => {
+                      const magnitude = Math.abs(Number(historyEntry?.magnitude));
+                      if (!Number.isFinite(magnitude)) {
+                        return null;
+                      }
+
+                      const isHeal = Boolean(historyEntry?.isHeal);
+                      const raw =
+                        typeof historyEntry?.raw === 'string'
+                          ? historyEntry.raw
+                          : String(historyEntry?.raw ?? magnitude);
+                      const effective = isHeal ? -magnitude : magnitude;
+
+                      return {
+                        raw,
+                        magnitude,
+                        isHeal,
+                        effective,
+                      };
+                    })
+                    .filter(Boolean)
+                : [];
+
+              const computedTotal = normalizeTotal(
+                history.reduce((sum, entry) => sum + entry.effective, 0)
+              );
+              const declaredTotal = Number(npcEntry?.totalDamage);
+              const totalDamage = Number.isFinite(declaredTotal)
+                ? normalizeTotal(declaredTotal)
+                : computedTotal;
+
+              const fullHpValue =
+                npcEntry?.fullHp === null || npcEntry?.fullHp === undefined
+                  ? null
+                  : Number(npcEntry.fullHp);
+
+              return {
+                id,
+                name:
+                  typeof npcEntry?.name === 'string' && npcEntry.name.trim()
+                    ? npcEntry.name
+                    : `NPC #${id}`,
+                fullHp: Number.isFinite(fullHpValue) ? fullHpValue : null,
+                history,
+                totalDamage: Math.abs(totalDamage - computedTotal) < 1e-6
+                  ? totalDamage
+                  : computedTotal,
+              };
+            })
+            .filter(Boolean)
+        : [];
+
+      combatants.length = 0;
+      sanitizedCombatants.forEach((combatant) => combatants.push(combatant));
+
+      const maxCombatantId = sanitizedCombatants.reduce(
+        (max, combatant) => Math.max(max, combatant.id),
+        0
+      );
+      const declaredCounter = Number(rawState.combatantCounter);
+      combatantCounter = Number.isFinite(declaredCounter)
+        ? Math.max(declaredCounter, maxCombatantId)
+        : maxCombatantId;
+
+      const requestedActiveCombatantId = Number(rawState.activeCombatantId);
+      const hasRequestedCombatant = sanitizedCombatants.some(
+        (combatant) => combatant.id === requestedActiveCombatantId
+      );
+      activeCombatantId = hasRequestedCombatant
+        ? requestedActiveCombatantId
+        : sanitizedCombatants[0]?.id ?? null;
+      activeCombatantIndex = sanitizedCombatants.findIndex(
+        (combatant) => combatant.id === activeCombatantId
+      );
+      if (activeCombatantIndex < 0) {
+        activeCombatantIndex = 0;
+      }
+
+      npcs.length = 0;
+      sanitizedNpcs.forEach((npc) => npcs.push(npc));
+
+      const maxNpcId = sanitizedNpcs.reduce((max, npc) => Math.max(max, npc.id), 0);
+      const declaredNpcCounter = Number(rawState.npcCounter);
+      npcCounter = Number.isFinite(declaredNpcCounter)
+        ? Math.max(declaredNpcCounter, maxNpcId)
+        : maxNpcId;
+
+      const requestedActiveNpcId = Number(rawState.activeNpcId);
+      const hasRequestedNpc = sanitizedNpcs.some((npc) => npc.id === requestedActiveNpcId);
+      activeNpcId = hasRequestedNpc ? requestedActiveNpcId : sanitizedNpcs[0]?.id ?? null;
+
+      initiativeApp.hidden = encounterStarted;
+      hpApp.hidden = !encounterStarted;
+
+      renderInitiativeTable();
+      renderTurnOrder();
+      renderNpcTabs();
+      refreshActiveNpc();
+      clearDamageError();
+      clearCombatantEditError();
+      damageInput.value = '';
     }
 
     function getActiveNpc() {
@@ -1372,6 +1549,57 @@
 
     undoButton.addEventListener('click', undoLastEntry);
     resetButton.addEventListener('click', resetCurrentNpc);
+
+    if (exportButton) {
+      exportButton.addEventListener('click', () => {
+        try {
+          const state = buildEncounterState();
+          const json = JSON.stringify(state, null, 2);
+          const blob = new Blob([json], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const anchor = document.createElement('a');
+          anchor.href = url;
+          anchor.download = `encounter-${new Date().toISOString().replace(/[.:]/g, '-')}.json`;
+          document.body.appendChild(anchor);
+          anchor.click();
+          anchor.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 0);
+        } catch (error) {
+          console.error('Failed to export encounter', error);
+          window.alert('Unable to export the encounter. Please try again.');
+        }
+      });
+    }
+
+    if (importButton && importInput) {
+      importButton.addEventListener('click', () => {
+        importInput.value = '';
+        importInput.click();
+      });
+
+      importInput.addEventListener('change', async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) {
+          return;
+        }
+
+        try {
+          const text = await file.text();
+          const parsed = JSON.parse(text);
+          applyEncounterState(parsed);
+          window.alert('Encounter imported successfully.');
+        } catch (error) {
+          console.error('Failed to import encounter', error);
+          const message =
+            error instanceof Error && error.message
+              ? error.message
+              : 'Unable to import the encounter. Please verify the file and try again.';
+          window.alert(message);
+        } finally {
+          importInput.value = '';
+        }
+      });
+    }
 
     function finalizeInitiative() {
       if (combatants.length === 0) {
