@@ -78,6 +78,7 @@
       font-size: 1rem;
       transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
       background: rgba(255, 255, 255, 0.9);
+      color: #1f2933;
     }
 
     input[type="text"]:focus,
@@ -86,6 +87,10 @@
       border-color: #5176ff;
       box-shadow: 0 0 0 3px rgba(81, 118, 255, 0.2);
       outline: none;
+    }
+
+    input::placeholder {
+      color: rgba(39, 64, 96, 0.6);
     }
 
     .radio-group {
@@ -270,27 +275,6 @@
       transform: translateY(-1px);
     }
 
-    .monster-form {
-      display: grid;
-      gap: 0.75rem;
-      grid-template-columns: 1fr 1fr 1fr auto;
-      align-items: center;
-    }
-
-    .monster-form input {
-      width: 100%;
-      box-sizing: border-box;
-    }
-
-    .monster-form button {
-      white-space: nowrap;
-    }
-
-    .monster-form .error {
-      grid-column: 1 / -1;
-      margin: 0;
-    }
-
     .combatant-manager {
       margin-bottom: 2rem;
     }
@@ -359,6 +343,7 @@
       border-radius: 10px;
       font-size: 1rem;
       transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+      color: #1f2933;
     }
 
     .input-row input[type="text"]:focus {
@@ -428,6 +413,133 @@
       color: #274060;
     }
 
+    @media (prefers-color-scheme: dark) {
+      :root {
+        background-color: #0f172a;
+        color: #e2e8f0;
+      }
+
+      body {
+        background: linear-gradient(135deg, #1f2937, #0f172a);
+      }
+
+      .app {
+        background: rgba(15, 23, 42, 0.9);
+        box-shadow: 0 25px 45px rgba(0, 0, 0, 0.4);
+      }
+
+      h1,
+      h2 {
+        color: #bfdbfe;
+      }
+
+      label {
+        color: #cbd5f5;
+      }
+
+      input[type="text"],
+      input[type="number"],
+      select {
+        background: rgba(15, 23, 42, 0.85);
+        border-color: #475569;
+        color: #f8fafc;
+      }
+
+      .input-row input[type="text"] {
+        background: rgba(15, 23, 42, 0.85);
+        border-color: #475569;
+        color: #f8fafc;
+      }
+
+      input::placeholder {
+        color: rgba(226, 232, 240, 0.7);
+      }
+
+      .radio-option {
+        background: rgba(30, 41, 59, 0.7);
+        border-color: #475569;
+      }
+
+      .turn-pill {
+        background: rgba(59, 130, 246, 0.2);
+        color: #bfdbfe;
+      }
+
+      .turn-pill[aria-current="true"] {
+        background: #3b82f6;
+        color: #f8fafc;
+      }
+
+      .tab {
+        background: rgba(30, 41, 59, 0.85);
+        color: #e2e8f0;
+      }
+
+      .tab[aria-selected="true"] {
+        background: #3b82f6;
+        color: #f8fafc;
+        box-shadow: 0 12px 24px rgba(59, 130, 246, 0.35);
+      }
+
+      .total {
+        background-color: #1e293b;
+        color: #e2e8f0;
+      }
+
+      .total .metric {
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      .metric .metric-label {
+        color: rgba(226, 232, 240, 0.8);
+      }
+
+      .history {
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid #1f2937;
+      }
+
+      .history li {
+        background: rgba(30, 41, 59, 0.9);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.35);
+      }
+
+      .history li .label {
+        color: #cbd5f5;
+      }
+
+      .history li .value {
+        color: #f8fafc;
+      }
+
+      table {
+        background: rgba(15, 23, 42, 0.85);
+      }
+
+      th {
+        background: rgba(59, 130, 246, 0.2);
+        color: #bfdbfe;
+      }
+
+      td {
+        color: #e2e8f0;
+      }
+
+      .empty-message {
+        color: #94a3b8;
+      }
+
+      button.secondary {
+        background: rgba(59, 130, 246, 0.15);
+        color: #e2e8f0;
+      }
+
+      button.secondary:hover {
+        background: rgba(59, 130, 246, 0.25);
+        box-shadow: 0 8px 16px rgba(15, 23, 42, 0.4);
+      }
+    }
+
     @media (max-width: 720px) {
       .form-grid {
         grid-template-columns: 1fr;
@@ -452,10 +564,6 @@
 
       .turn-order {
         width: 100%;
-      }
-
-      .monster-form {
-        grid-template-columns: 1fr;
       }
     }
 
@@ -567,33 +675,6 @@
     <section class="monster-manager" aria-label="NPC selection">
       <div class="tabs-container">
         <div id="npc-tabs" class="tabs" role="tablist" aria-label="NPCs"></div>
-      </div>
-      <div class="monster-form">
-        <input
-          id="npc-name-input"
-          type="text"
-          autocomplete="off"
-          placeholder="Add extra NPC name (optional)"
-          aria-label="Add extra NPC name (optional)"
-        />
-        <input
-          id="npc-hp-input"
-          type="text"
-          inputmode="decimal"
-          autocomplete="off"
-          placeholder="Full HP (optional)"
-          aria-label="Full HP (optional)"
-        />
-        <input
-          id="npc-initiative-input"
-          type="text"
-          inputmode="decimal"
-          autocomplete="off"
-          placeholder="Initiative (optional)"
-          aria-label="Initiative (optional)"
-        />
-        <button id="add-npc-button" type="button">Add NPC</button>
-        <p id="npc-form-error" class="error" role="alert"></p>
       </div>
     </section>
 
@@ -1045,11 +1126,6 @@
     const historyEmptyMessage = document.getElementById('history-empty');
     const damageError = document.getElementById('damage-error');
     const npcTabs = document.getElementById('npc-tabs');
-    const npcNameInput = document.getElementById('npc-name-input');
-    const npcHpInput = document.getElementById('npc-hp-input');
-    const npcInitiativeInput = document.getElementById('npc-initiative-input');
-    const addNpcButton = document.getElementById('add-npc-button');
-    const npcFormError = document.getElementById('npc-form-error');
     const npcNameDisplay = document.getElementById('npc-name-display');
 
     const npcs = [];
@@ -1143,7 +1219,7 @@
       if (!npc || npc.history.length === 0) {
         historyEmptyMessage.textContent = npc
           ? `No damage recorded for ${npc.name} yet.`
-          : 'Add an NPC to begin tracking damage.';
+          : 'Finish initiative with at least one NPC to begin tracking damage.';
         historyEmptyMessage.style.display = 'block';
         return;
       }
@@ -1261,16 +1337,6 @@
       damageInput.focus();
     }
 
-    function showNpcFormError(message) {
-      npcFormError.textContent = message;
-      npcFormError.style.display = 'block';
-    }
-
-    function clearNpcFormError() {
-      npcFormError.textContent = '';
-      npcFormError.style.display = 'none';
-    }
-
     function handleAddNpc({ name, fullHp, initiative }) {
       const npc = createNpc({ name, fullHp });
       npcs.push(npc);
@@ -1295,42 +1361,6 @@
       }
     }
 
-    function onAddNpcClick() {
-      const name = npcNameInput.value.trim();
-      const rawFullHp = npcHpInput.value.trim();
-      const rawInitiative = npcInitiativeInput.value.trim();
-
-      let parsedFullHp = null;
-      if (rawFullHp) {
-        const numericValue = parseFloat(rawFullHp);
-        if (Number.isNaN(numericValue) || numericValue <= 0) {
-          showNpcFormError('Please enter a positive number for full HP.');
-          npcHpInput.focus();
-          return;
-        }
-        parsedFullHp = numericValue;
-      }
-
-      let parsedInitiative = null;
-      if (rawInitiative) {
-        const numericInitiative = Number(rawInitiative);
-        if (!Number.isFinite(numericInitiative)) {
-          showNpcFormError('Please enter a valid number for initiative.');
-          npcInitiativeInput.focus();
-          return;
-        }
-        parsedInitiative = numericInitiative;
-      }
-
-      clearNpcFormError();
-      handleAddNpc({ name, fullHp: parsedFullHp, initiative: parsedInitiative });
-
-      npcNameInput.value = '';
-      npcHpInput.value = '';
-      npcInitiativeInput.value = '';
-      damageInput.focus();
-    }
-
     addButton.addEventListener('click', addEntry);
 
     damageInput.addEventListener('keydown', (event) => {
@@ -1342,22 +1372,6 @@
 
     undoButton.addEventListener('click', undoLastEntry);
     resetButton.addEventListener('click', resetCurrentNpc);
-    addNpcButton.addEventListener('click', onAddNpcClick);
-
-    npcNameInput.addEventListener('input', clearNpcFormError);
-    npcHpInput.addEventListener('input', clearNpcFormError);
-    npcInitiativeInput.addEventListener('input', clearNpcFormError);
-
-    const handleNpcFormKeydown = (event) => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        onAddNpcClick();
-      }
-    };
-
-    npcNameInput.addEventListener('keydown', handleNpcFormKeydown);
-    npcHpInput.addEventListener('keydown', handleNpcFormKeydown);
-    npcInitiativeInput.addEventListener('keydown', handleNpcFormKeydown);
 
     function finalizeInitiative() {
       if (combatants.length === 0) {
