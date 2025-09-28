@@ -273,8 +273,13 @@
     .monster-form {
       display: grid;
       gap: 0.75rem;
-      grid-template-columns: 1fr 1fr auto;
+      grid-template-columns: 1fr 1fr 1fr auto;
       align-items: center;
+    }
+
+    .monster-form input {
+      width: 100%;
+      box-sizing: border-box;
     }
 
     .monster-form button {
@@ -284,6 +289,20 @@
     .monster-form .error {
       grid-column: 1 / -1;
       margin: 0;
+    }
+
+    .combatant-manager {
+      margin-bottom: 2rem;
+    }
+
+    .combatant-manager table {
+      margin-bottom: 0.5rem;
+    }
+
+    .combatant-manager input[type="text"],
+    .combatant-manager input[type="number"] {
+      width: 100%;
+      box-sizing: border-box;
     }
 
     .total {
@@ -434,6 +453,10 @@
       .turn-order {
         width: 100%;
       }
+
+      .monster-form {
+        grid-template-columns: 1fr;
+      }
     }
 
     @media (max-width: 520px) {
@@ -524,6 +547,23 @@
     </section>
     <p id="current-turn" class="current-turn" aria-live="polite"></p>
 
+    <section class="combatant-manager" aria-label="Combatant management">
+      <h2>Combatant Order</h2>
+      <table aria-live="polite">
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Name</th>
+            <th scope="col">Type</th>
+            <th scope="col">Initiative</th>
+          </tr>
+        </thead>
+        <tbody id="combatant-editor-body"></tbody>
+      </table>
+      <p id="combatant-editor-empty" class="empty-message">No combatants in this encounter yet.</p>
+      <p id="combatant-edit-error" class="error" role="alert"></p>
+    </section>
+
     <section class="monster-manager" aria-label="NPC selection">
       <div class="tabs-container">
         <div id="npc-tabs" class="tabs" role="tablist" aria-label="NPCs"></div>
@@ -543,6 +583,14 @@
           autocomplete="off"
           placeholder="Full HP (optional)"
           aria-label="Full HP (optional)"
+        />
+        <input
+          id="npc-initiative-input"
+          type="text"
+          inputmode="decimal"
+          autocomplete="off"
+          placeholder="Initiative (optional)"
+          aria-label="Initiative (optional)"
         />
         <button id="add-npc-button" type="button">Add NPC</button>
         <p id="npc-form-error" class="error" role="alert"></p>
@@ -608,6 +656,9 @@
     const prevCombatantButton = document.getElementById('prev-combatant');
     const nextCombatantButton = document.getElementById('next-combatant');
     const currentTurnDisplay = document.getElementById('current-turn');
+    const combatantEditorBody = document.getElementById('combatant-editor-body');
+    const combatantEditorEmpty = document.getElementById('combatant-editor-empty');
+    const combatantEditError = document.getElementById('combatant-edit-error');
 
     const DECIMAL_FACTOR = 10000;
     const numberFormatter = new Intl.NumberFormat(undefined, {
@@ -617,6 +668,7 @@
     const combatants = [];
     let combatantCounter = 0;
     let activeCombatantIndex = 0;
+    let activeCombatantId = null;
 
     function setFieldVisibility(mode) {
       if (mode === 'manual') {
@@ -663,6 +715,18 @@
       });
     }
 
+    function pushCombatant({ name, type, initiative, details }) {
+      const combatant = {
+        id: ++combatantCounter,
+        name,
+        type,
+        initiative,
+        details: details ?? 'Manual entry',
+      };
+      combatants.push(combatant);
+      return combatant;
+    }
+
     function addCombatant() {
       const name = combatantNameInput.value.trim();
       const type = combatantTypeSelect.value;
@@ -682,8 +746,7 @@
           return;
         }
 
-        combatants.push({
-          id: ++combatantCounter,
+        pushCombatant({
           name,
           type,
           initiative: parsed,
@@ -714,8 +777,7 @@
           }
         }
 
-        combatants.push({
-          id: ++combatantCounter,
+        pushCombatant({
           name,
           type,
           initiative: chosenRoll + modifier,
@@ -803,12 +865,15 @@
     function setActiveCombatant(index) {
       if (combatants.length === 0) {
         activeCombatantIndex = 0;
-        currentTurnDisplay.textContent = '';
+        activeCombatantId = null;
+        renderTurnOrder();
         return;
       }
 
       const total = combatants.length;
-      activeCombatantIndex = (index + total) % total;
+      const normalizedIndex = (index + total) % total;
+      activeCombatantIndex = normalizedIndex;
+      activeCombatantId = combatants[normalizedIndex]?.id ?? null;
       renderTurnOrder();
     }
 
@@ -819,7 +884,25 @@
 
       if (total === 0) {
         currentTurnDisplay.textContent = '';
+        activeCombatantIndex = 0;
+        activeCombatantId = null;
+        renderCombatantEditor();
         return;
+      }
+
+      if (activeCombatantId !== null) {
+        const updatedIndex = combatants.findIndex(
+          (combatant) => combatant.id === activeCombatantId
+        );
+        if (updatedIndex !== -1) {
+          activeCombatantIndex = updatedIndex;
+        } else {
+          activeCombatantIndex = 0;
+          activeCombatantId = combatants[0].id;
+        }
+      } else {
+        activeCombatantIndex = 0;
+        activeCombatantId = combatants[0].id;
       }
 
       combatants.forEach((combatant, index) => {
@@ -841,6 +924,106 @@
         activeCombatant,
         activeCombatantIndex
       )} (${activeCombatant.type}) — Initiative ${activeCombatant.initiative}`;
+      renderCombatantEditor();
+    }
+
+    function showCombatantEditError(message) {
+      if (!combatantEditError) {
+        return;
+      }
+
+      combatantEditError.textContent = message;
+      combatantEditError.style.display = 'block';
+    }
+
+    function clearCombatantEditError() {
+      if (!combatantEditError) {
+        return;
+      }
+
+      combatantEditError.textContent = '';
+      combatantEditError.style.display = 'none';
+    }
+
+    function renderCombatantEditor() {
+      if (!combatantEditorBody) {
+        return;
+      }
+
+      combatantEditorBody.innerHTML = '';
+
+      if (combatantEditorEmpty) {
+        combatantEditorEmpty.style.display = combatants.length === 0 ? 'block' : 'none';
+      }
+
+      if (combatants.length === 0) {
+        clearCombatantEditError();
+        return;
+      }
+
+      combatants.forEach((combatant, index) => {
+        const row = document.createElement('tr');
+
+        const orderCell = document.createElement('td');
+        orderCell.textContent = index + 1;
+        row.appendChild(orderCell);
+
+        const displayName = formatCombatantName(combatant, index);
+
+        const nameCell = document.createElement('td');
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.value = combatant.name;
+        nameInput.placeholder = displayName;
+        nameInput.setAttribute('aria-label', `Edit name for ${displayName}`);
+        nameInput.addEventListener('focus', clearCombatantEditError);
+        nameInput.addEventListener('change', () => {
+          combatant.name = nameInput.value.trim();
+          clearCombatantEditError();
+          renderTurnOrder();
+        });
+        nameCell.appendChild(nameInput);
+        row.appendChild(nameCell);
+
+        const typeCell = document.createElement('td');
+        typeCell.textContent = combatant.type;
+        row.appendChild(typeCell);
+
+        const initiativeCell = document.createElement('td');
+        const initiativeInput = document.createElement('input');
+        initiativeInput.type = 'number';
+        initiativeInput.inputMode = 'decimal';
+        initiativeInput.step = 'any';
+        initiativeInput.value = combatant.initiative;
+        initiativeInput.setAttribute('aria-label', `Edit initiative for ${displayName}`);
+        initiativeInput.addEventListener('focus', clearCombatantEditError);
+        initiativeInput.addEventListener('change', () => {
+          const rawValue = initiativeInput.value.trim();
+          if (rawValue === '') {
+            showCombatantEditError('Enter an initiative value.');
+            initiativeInput.value = combatant.initiative;
+            initiativeInput.focus();
+            return;
+          }
+
+          const parsed = Number(rawValue);
+          if (!Number.isFinite(parsed)) {
+            showCombatantEditError('Initiative must be a number.');
+            initiativeInput.value = combatant.initiative;
+            initiativeInput.focus();
+            return;
+          }
+
+          combatant.initiative = parsed;
+          combatant.details = 'Adjusted manually';
+          clearCombatantEditError();
+          renderTurnOrder();
+        });
+        initiativeCell.appendChild(initiativeInput);
+        row.appendChild(initiativeCell);
+
+        combatantEditorBody.appendChild(row);
+      });
     }
 
     prevCombatantButton.addEventListener('click', () => {
@@ -864,6 +1047,7 @@
     const npcTabs = document.getElementById('npc-tabs');
     const npcNameInput = document.getElementById('npc-name-input');
     const npcHpInput = document.getElementById('npc-hp-input');
+    const npcInitiativeInput = document.getElementById('npc-initiative-input');
     const addNpcButton = document.getElementById('add-npc-button');
     const npcFormError = document.getElementById('npc-form-error');
     const npcNameDisplay = document.getElementById('npc-name-display');
@@ -1087,17 +1271,34 @@
       npcFormError.style.display = 'none';
     }
 
-    function handleAddNpc(name, fullHp) {
+    function handleAddNpc({ name, fullHp, initiative }) {
       const npc = createNpc({ name, fullHp });
       npcs.push(npc);
       activeNpcId = npc.id;
       renderNpcTabs();
       refreshActiveNpc();
+
+      if (typeof initiative === 'number' && Number.isFinite(initiative)) {
+        const newCombatant = pushCombatant({
+          name: npc.name,
+          type: 'NPC',
+          initiative,
+          details: 'Manual entry',
+        });
+
+        if (activeCombatantId === null) {
+          activeCombatantId = newCombatant.id;
+        }
+
+        renderTurnOrder();
+        clearCombatantEditError();
+      }
     }
 
     function onAddNpcClick() {
       const name = npcNameInput.value.trim();
       const rawFullHp = npcHpInput.value.trim();
+      const rawInitiative = npcInitiativeInput.value.trim();
 
       let parsedFullHp = null;
       if (rawFullHp) {
@@ -1110,11 +1311,23 @@
         parsedFullHp = numericValue;
       }
 
+      let parsedInitiative = null;
+      if (rawInitiative) {
+        const numericInitiative = Number(rawInitiative);
+        if (!Number.isFinite(numericInitiative)) {
+          showNpcFormError('Please enter a valid number for initiative.');
+          npcInitiativeInput.focus();
+          return;
+        }
+        parsedInitiative = numericInitiative;
+      }
+
       clearNpcFormError();
-      handleAddNpc(name, parsedFullHp);
+      handleAddNpc({ name, fullHp: parsedFullHp, initiative: parsedInitiative });
 
       npcNameInput.value = '';
       npcHpInput.value = '';
+      npcInitiativeInput.value = '';
       damageInput.focus();
     }
 
@@ -1133,6 +1346,7 @@
 
     npcNameInput.addEventListener('input', clearNpcFormError);
     npcHpInput.addEventListener('input', clearNpcFormError);
+    npcInitiativeInput.addEventListener('input', clearNpcFormError);
 
     const handleNpcFormKeydown = (event) => {
       if (event.key === 'Enter') {
@@ -1143,6 +1357,7 @@
 
     npcNameInput.addEventListener('keydown', handleNpcFormKeydown);
     npcHpInput.addEventListener('keydown', handleNpcFormKeydown);
+    npcInitiativeInput.addEventListener('keydown', handleNpcFormKeydown);
 
     function finalizeInitiative() {
       if (combatants.length === 0) {
@@ -1157,7 +1372,7 @@
 
       const npcCombatants = combatants.filter((combatant) => combatant.type === 'NPC');
       npcCombatants.forEach((combatant, index) => {
-        handleAddNpc(formatCombatantName(combatant, index), null);
+        handleAddNpc({ name: formatCombatantName(combatant, index), fullHp: null });
       });
 
       if (npcCombatants.length === 0) {
