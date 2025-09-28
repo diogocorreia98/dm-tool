@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Damage Tracker</title>
+  <title>DM Toolkit</title>
   <style>
     :root {
       color-scheme: light dark;
@@ -18,25 +18,272 @@
       justify-content: center;
       min-height: 100vh;
       background: linear-gradient(135deg, #f0f4ff, #e3f8ff);
+      padding: 2rem 1rem;
+      box-sizing: border-box;
     }
 
     .app {
-      margin: 4rem 1.5rem;
       padding: 2.5rem;
       border-radius: 18px;
-      background: rgba(255, 255, 255, 0.9);
+      background: rgba(255, 255, 255, 0.95);
       box-shadow: 0 25px 45px rgba(0, 0, 0, 0.1);
-      max-width: 520px;
+      max-width: 880px;
       width: 100%;
+      transition: opacity 0.3s ease;
     }
 
     h1 {
       text-align: center;
       margin-top: 0;
-      margin-bottom: 1.5rem;
-      font-size: 2rem;
+      margin-bottom: 2rem;
+      font-size: 2.1rem;
       letter-spacing: 0.05em;
       color: #274060;
+    }
+
+    h2 {
+      color: #274060;
+      margin-top: 0;
+    }
+
+    .section {
+      display: grid;
+      gap: 1.5rem;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      align-items: end;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    label {
+      font-size: 0.9rem;
+      color: #4a5d78;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select {
+      padding: 0.85rem 1rem;
+      border: 2px solid #cfd8e3;
+      border-radius: 10px;
+      font-size: 1rem;
+      transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus,
+    select:focus {
+      border-color: #5176ff;
+      box-shadow: 0 0 0 3px rgba(81, 118, 255, 0.2);
+      outline: none;
+    }
+
+    .radio-group {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid #cfd8e3;
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    .radio-option input {
+      accent-color: #5176ff;
+    }
+
+    button {
+      padding: 0.85rem 1.25rem;
+      background: #5176ff;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 20px rgba(81, 118, 255, 0.25);
+      background: #4063f0;
+    }
+
+    button.secondary {
+      background: #ecf1ff;
+      color: #274060;
+    }
+
+    button.secondary:hover {
+      background: #d7e2ff;
+      box-shadow: 0 8px 16px rgba(39, 64, 96, 0.15);
+    }
+
+    button:disabled,
+    button[disabled] {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .error {
+      color: #c62828;
+      font-size: 0.9rem;
+      display: none;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: rgba(244, 247, 255, 0.9);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    th,
+    td {
+      padding: 0.85rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(207, 216, 227, 0.6);
+      font-size: 0.95rem;
+    }
+
+    th {
+      background: rgba(81, 118, 255, 0.12);
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      color: #4a5d78;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .empty-message {
+      text-align: center;
+      color: #7b8ba5;
+      font-style: italic;
+    }
+
+    .turn-tracker {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .turn-order {
+      display: flex;
+      flex: 1;
+      gap: 0.5rem;
+      overflow-x: auto;
+      padding: 0.35rem;
+    }
+
+    .turn-pill {
+      white-space: nowrap;
+      padding: 0.5rem 0.9rem;
+      border-radius: 999px;
+      border: none;
+      background: #ecf1ff;
+      color: #274060;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: background 0.2s ease, transform 0.2s ease;
+    }
+
+    .turn-pill:hover {
+      transform: translateY(-1px);
+    }
+
+    .turn-pill[aria-current="true"] {
+      background: #5176ff;
+      color: #fff;
+      box-shadow: 0 12px 24px rgba(81, 118, 255, 0.25);
+    }
+
+    .current-turn {
+      font-weight: 600;
+      color: #274060;
+    }
+
+    .tabs-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      overflow-x: auto;
+      padding-bottom: 0.25rem;
+    }
+
+    .tabs {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .tab {
+      padding: 0.6rem 1rem;
+      border-radius: 999px;
+      border: none;
+      background: #ecf1ff;
+      color: #274060;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .tab[aria-selected="true"] {
+      background: #5176ff;
+      color: #fff;
+      box-shadow: 0 12px 24px rgba(81, 118, 255, 0.25);
+    }
+
+    .tab:focus-visible {
+      outline: 3px solid rgba(81, 118, 255, 0.4);
+      outline-offset: 2px;
+    }
+
+    .tab:hover {
+      transform: translateY(-1px);
+    }
+
+    .monster-form {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: 1fr 1fr auto;
+      align-items: center;
+    }
+
+    .monster-form button {
+      white-space: nowrap;
+    }
+
+    .monster-form .error {
+      grid-column: 1 / -1;
+      margin: 0;
     }
 
     .total {
@@ -101,117 +348,12 @@
       outline: none;
     }
 
-    button {
-      padding: 0.85rem 1.25rem;
-      background: #5176ff;
-      color: #fff;
-      border: none;
-      border-radius: 10px;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-    }
-
-    button:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 10px 20px rgba(81, 118, 255, 0.25);
-      background: #4063f0;
-    }
-
-    button.secondary {
-      background: #ecf1ff;
-      color: #274060;
-    }
-
-    button.secondary:hover {
-      background: #d7e2ff;
-      box-shadow: 0 8px 16px rgba(39, 64, 96, 0.15);
-    }
-
     .controls {
       display: flex;
       gap: 0.75rem;
       justify-content: flex-end;
       flex-wrap: wrap;
       margin-bottom: 1.75rem;
-    }
-
-    .monster-manager {
-      margin-bottom: 1.75rem;
-    }
-
-    .tabs-container {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      margin-bottom: 1rem;
-      overflow-x: auto;
-      padding-bottom: 0.25rem;
-    }
-
-    .tabs {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .tab {
-      padding: 0.6rem 1rem;
-      border-radius: 999px;
-      border: none;
-      background: #ecf1ff;
-      color: #274060;
-      cursor: pointer;
-      font-size: 0.95rem;
-      font-weight: 600;
-      transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
-      white-space: nowrap;
-    }
-
-    .tab[aria-selected='true'] {
-      background: #5176ff;
-      color: #fff;
-      box-shadow: 0 12px 24px rgba(81, 118, 255, 0.25);
-    }
-
-    .tab:focus-visible {
-      outline: 3px solid rgba(81, 118, 255, 0.4);
-      outline-offset: 2px;
-    }
-
-    .tab:hover {
-      transform: translateY(-1px);
-    }
-
-    .monster-form {
-      display: grid;
-      gap: 0.75rem;
-      grid-template-columns: 1fr 1fr auto;
-      align-items: center;
-    }
-
-    .monster-form input[type='text'] {
-      padding: 0.75rem 1rem;
-      border: 2px solid #cfd8e3;
-      border-radius: 10px;
-      font-size: 0.95rem;
-      transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-    }
-
-    .monster-form input[type='text']:focus {
-      border-color: #5176ff;
-      box-shadow: 0 0 0 3px rgba(81, 118, 255, 0.2);
-      outline: none;
-    }
-
-    .monster-form button {
-      white-space: nowrap;
-    }
-
-    .monster-form .error {
-      grid-column: 1 / -1;
-      margin: 0;
     }
 
     .history {
@@ -267,34 +409,9 @@
       color: #274060;
     }
 
-    .empty-message {
-      text-align: center;
-      color: #7b8ba5;
-      font-style: italic;
-    }
-
-    .error {
-      color: #c62828;
-      margin-top: -0.5rem;
-      margin-bottom: 1rem;
-      font-size: 0.9rem;
-      display: none;
-    }
-
     @media (max-width: 720px) {
-      .monster-form {
+      .form-grid {
         grid-template-columns: 1fr;
-      }
-
-      .monster-form button {
-        width: 100%;
-      }
-    }
-
-    @media (max-width: 520px) {
-      .app {
-        margin: 2rem 1rem;
-        padding: 1.75rem;
       }
 
       .input-row {
@@ -308,39 +425,132 @@
       button {
         width: 100%;
       }
+
+      .turn-tracker {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .turn-order {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .app {
+        padding: 1.75rem;
+      }
     }
   </style>
 </head>
 <body>
-  <main class="app" aria-labelledby="title">
-    <h1 id="title">Damage Tracker</h1>
-    <section class="monster-manager" aria-label="Monster selection">
+  <main id="initiative-app" class="app" aria-labelledby="initiative-title">
+    <h1 id="initiative-title">Initiative Tracker</h1>
+    <section class="section" aria-label="Initiative entry">
+      <div class="form-grid">
+        <div class="field">
+          <label for="combatant-name">Combatant Name</label>
+          <input id="combatant-name" type="text" placeholder="e.g. Aelar" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="combatant-type">Type</label>
+          <select id="combatant-type">
+            <option value="PC">PC</option>
+            <option value="NPC">NPC</option>
+          </select>
+        </div>
+        <div class="field" style="grid-column: 1 / -1;">
+          <label>Roll Mode</label>
+          <div class="radio-group" role="radiogroup" aria-label="Roll mode">
+            <label class="radio-option">
+              <input type="radio" name="roll-mode" value="manual" checked />
+              Manual roll
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="roll-mode" value="auto" />
+              Auto roll
+            </label>
+          </div>
+        </div>
+        <div class="field" data-mode="manual">
+          <label for="manual-initiative">Initiative Result</label>
+          <input id="manual-initiative" type="number" inputmode="decimal" placeholder="e.g. 16" />
+        </div>
+        <div class="field" data-mode="auto" hidden>
+          <label for="auto-modifier">Initiative Modifier</label>
+          <input id="auto-modifier" type="number" inputmode="decimal" placeholder="e.g. 3 or -1" value="0" />
+        </div>
+        <div class="field" data-mode="auto" hidden>
+          <label for="auto-advantage">Roll Style</label>
+          <select id="auto-advantage">
+            <option value="neutral">Neutral</option>
+            <option value="adv">Advantage</option>
+            <option value="disadv">Disadvantage</option>
+          </select>
+        </div>
+        <div class="field" style="grid-column: 1 / -1;">
+          <button id="add-combatant" type="button">Add Combatant</button>
+          <p id="initiative-error" class="error" role="alert"></p>
+        </div>
+      </div>
+      <div>
+        <h2>Turn Order</h2>
+        <table aria-live="polite">
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">Name</th>
+              <th scope="col">Type</th>
+              <th scope="col">Initiative</th>
+              <th scope="col">Details</th>
+            </tr>
+          </thead>
+          <tbody id="initiative-tbody"></tbody>
+        </table>
+        <p id="initiative-empty" class="empty-message">Add combatants to build the initiative order.</p>
+      </div>
+      <div style="display: flex; justify-content: flex-end;">
+        <button id="finish-initiative" type="button" disabled>Finish and Track HP</button>
+      </div>
+    </section>
+  </main>
+
+  <main id="hp-app" class="app" aria-labelledby="hp-title" hidden>
+    <h1 id="hp-title">HP Tracker</h1>
+    <section class="turn-tracker" aria-label="Turn navigation">
+      <button id="prev-combatant" class="secondary" type="button">Previous</button>
+      <div class="turn-order" id="turn-order" role="listbox" aria-label="Combatants"></div>
+      <button id="next-combatant" class="secondary" type="button">Next</button>
+    </section>
+    <p id="current-turn" class="current-turn" aria-live="polite"></p>
+
+    <section class="monster-manager" aria-label="NPC selection">
       <div class="tabs-container">
-        <div id="monster-tabs" class="tabs" role="tablist" aria-label="Monsters"></div>
+        <div id="npc-tabs" class="tabs" role="tablist" aria-label="NPCs"></div>
       </div>
       <div class="monster-form">
         <input
-          id="monster-name-input"
+          id="npc-name-input"
           type="text"
           autocomplete="off"
-          placeholder="Monster name (optional)"
-          aria-label="Monster name (optional)"
+          placeholder="Add extra NPC name (optional)"
+          aria-label="Add extra NPC name (optional)"
         />
         <input
-          id="monster-hp-input"
+          id="npc-hp-input"
           type="text"
           inputmode="decimal"
           autocomplete="off"
           placeholder="Full HP (optional)"
           aria-label="Full HP (optional)"
         />
-        <button id="add-monster-button" type="button">Add Monster</button>
-        <p id="monster-form-error" class="error" role="alert"></p>
+        <button id="add-npc-button" type="button">Add NPC</button>
+        <p id="npc-form-error" class="error" role="alert"></p>
       </div>
     </section>
 
     <section class="total" aria-live="polite">
-      <h2 id="monster-name-display">Monster #1</h2>
+      <h2 id="npc-name-display">No NPC selected</h2>
       <div class="total-metrics">
         <div class="metric">
           <span class="metric-label">Total Damage</span>
@@ -364,7 +574,7 @@
       />
       <button id="add-button" type="button">Add</button>
     </div>
-    <p id="error" class="error" role="alert">Please enter a valid number.</p>
+    <p id="damage-error" class="error" role="alert">Please enter a valid number.</p>
 
     <div class="controls">
       <button id="undo-button" class="secondary" type="button">Undo</button>
@@ -374,11 +584,273 @@
     <section class="history" aria-live="polite">
       <h2>History</h2>
       <ul id="history-list"></ul>
-      <p id="empty-message" class="empty-message">No damage recorded yet.</p>
+      <p id="history-empty" class="empty-message">No damage recorded yet.</p>
     </section>
   </main>
 
   <script>
+    const combatantNameInput = document.getElementById('combatant-name');
+    const combatantTypeSelect = document.getElementById('combatant-type');
+    const rollModeRadios = Array.from(document.querySelectorAll('input[name="roll-mode"]'));
+    const manualInitiativeInput = document.getElementById('manual-initiative');
+    const autoModifierInput = document.getElementById('auto-modifier');
+    const autoAdvantageSelect = document.getElementById('auto-advantage');
+    const manualFields = document.querySelectorAll('[data-mode="manual"]');
+    const autoFields = document.querySelectorAll('[data-mode="auto"]');
+    const addCombatantButton = document.getElementById('add-combatant');
+    const initiativeError = document.getElementById('initiative-error');
+    const initiativeTableBody = document.getElementById('initiative-tbody');
+    const initiativeEmptyMessage = document.getElementById('initiative-empty');
+    const finishInitiativeButton = document.getElementById('finish-initiative');
+    const initiativeApp = document.getElementById('initiative-app');
+    const hpApp = document.getElementById('hp-app');
+    const turnOrderContainer = document.getElementById('turn-order');
+    const prevCombatantButton = document.getElementById('prev-combatant');
+    const nextCombatantButton = document.getElementById('next-combatant');
+    const currentTurnDisplay = document.getElementById('current-turn');
+
+    const DECIMAL_FACTOR = 10000;
+    const numberFormatter = new Intl.NumberFormat(undefined, {
+      maximumFractionDigits: 4,
+    });
+
+    const combatants = [];
+    let combatantCounter = 0;
+    let activeCombatantIndex = 0;
+
+    function setFieldVisibility(mode) {
+      if (mode === 'manual') {
+        manualFields.forEach((field) => (field.hidden = false));
+        autoFields.forEach((field) => (field.hidden = true));
+      } else {
+        manualFields.forEach((field) => (field.hidden = true));
+        autoFields.forEach((field) => (field.hidden = false));
+      }
+    }
+
+    rollModeRadios.forEach((radio) => {
+      radio.addEventListener('change', (event) => {
+        if (event.target.checked) {
+          setFieldVisibility(event.target.value);
+        }
+      });
+    });
+
+    function randomD20() {
+      return Math.floor(Math.random() * 20) + 1;
+    }
+
+    function clearInitiativeError() {
+      initiativeError.textContent = '';
+      initiativeError.style.display = 'none';
+    }
+
+    function showInitiativeError(message) {
+      initiativeError.textContent = message;
+      initiativeError.style.display = 'block';
+    }
+
+    function formatCombatantName(combatant, index) {
+      return combatant.name || `${combatant.type} #${index + 1}`;
+    }
+
+    function sortCombatants() {
+      combatants.sort((a, b) => {
+        if (b.initiative !== a.initiative) {
+          return b.initiative - a.initiative;
+        }
+        return a.id - b.id;
+      });
+    }
+
+    function addCombatant() {
+      const name = combatantNameInput.value.trim();
+      const type = combatantTypeSelect.value;
+      const mode = rollModeRadios.find((radio) => radio.checked)?.value ?? 'manual';
+
+      if (mode === 'manual') {
+        const rawInitiative = manualInitiativeInput.value.trim();
+        if (rawInitiative === '') {
+          showInitiativeError('Enter an initiative value for manual rolls.');
+          manualInitiativeInput.focus();
+          return;
+        }
+        const parsed = Number(rawInitiative);
+        if (!Number.isFinite(parsed)) {
+          showInitiativeError('Please enter a valid number for initiative.');
+          manualInitiativeInput.focus();
+          return;
+        }
+
+        combatants.push({
+          id: ++combatantCounter,
+          name,
+          type,
+          initiative: parsed,
+          details: 'Manual entry',
+        });
+      } else {
+        const rawModifier = autoModifierInput.value.trim();
+        const modifier = rawModifier === '' ? 0 : Number(rawModifier);
+        if (!Number.isFinite(modifier)) {
+          showInitiativeError('Enter a numeric initiative modifier.');
+          autoModifierInput.focus();
+          return;
+        }
+
+        const rollStyle = autoAdvantageSelect.value;
+        const rollOne = randomD20();
+        let chosenRoll = rollOne;
+        let rollSummary = `Rolled ${rollOne}`;
+
+        if (rollStyle === 'adv' || rollStyle === 'disadv') {
+          const rollTwo = randomD20();
+          if (rollStyle === 'adv') {
+            chosenRoll = Math.max(rollOne, rollTwo);
+            rollSummary = `Rolled ${rollOne} & ${rollTwo} (adv) → ${chosenRoll}`;
+          } else {
+            chosenRoll = Math.min(rollOne, rollTwo);
+            rollSummary = `Rolled ${rollOne} & ${rollTwo} (disadv) → ${chosenRoll}`;
+          }
+        }
+
+        combatants.push({
+          id: ++combatantCounter,
+          name,
+          type,
+          initiative: chosenRoll + modifier,
+          details:
+            modifier === 0
+              ? `${rollSummary}`
+              : `${rollSummary} + ${modifier >= 0 ? modifier : `(${modifier})`}`,
+        });
+      }
+
+      clearInitiativeError();
+      combatantNameInput.value = '';
+      manualInitiativeInput.value = '';
+      autoModifierInput.value = '0';
+      combatantNameInput.focus();
+
+      renderInitiativeTable();
+    }
+
+    function renderInitiativeTable() {
+      sortCombatants();
+
+      initiativeTableBody.innerHTML = '';
+
+      if (combatants.length === 0) {
+        initiativeEmptyMessage.style.display = 'block';
+        finishInitiativeButton.disabled = true;
+        return;
+      }
+
+      initiativeEmptyMessage.style.display = 'none';
+      finishInitiativeButton.disabled = false;
+
+      combatants.forEach((combatant, index) => {
+        const row = document.createElement('tr');
+
+        const orderCell = document.createElement('td');
+        orderCell.textContent = index + 1;
+        row.appendChild(orderCell);
+
+        const nameCell = document.createElement('td');
+        nameCell.textContent = formatCombatantName(combatant, index);
+        row.appendChild(nameCell);
+
+        const typeCell = document.createElement('td');
+        typeCell.textContent = combatant.type;
+        row.appendChild(typeCell);
+
+        const initiativeCell = document.createElement('td');
+        initiativeCell.textContent = combatant.initiative;
+        row.appendChild(initiativeCell);
+
+        const detailsCell = document.createElement('td');
+        detailsCell.textContent = combatant.details;
+        row.appendChild(detailsCell);
+
+        initiativeTableBody.appendChild(row);
+      });
+    }
+
+    addCombatantButton.addEventListener('click', addCombatant);
+
+    combatantNameInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        addCombatant();
+      }
+    });
+
+    manualInitiativeInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        addCombatant();
+      }
+    });
+
+    autoModifierInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        addCombatant();
+      }
+    });
+
+    [combatantNameInput, manualInitiativeInput, autoModifierInput].forEach((input) => {
+      input.addEventListener('input', clearInitiativeError);
+    });
+
+    function setActiveCombatant(index) {
+      if (combatants.length === 0) {
+        activeCombatantIndex = 0;
+        currentTurnDisplay.textContent = '';
+        return;
+      }
+
+      const total = combatants.length;
+      activeCombatantIndex = (index + total) % total;
+      renderTurnOrder();
+    }
+
+    function renderTurnOrder() {
+      sortCombatants();
+      const total = combatants.length;
+      turnOrderContainer.innerHTML = '';
+
+      if (total === 0) {
+        currentTurnDisplay.textContent = '';
+        return;
+      }
+
+      combatants.forEach((combatant, index) => {
+        const pill = document.createElement('button');
+        pill.type = 'button';
+        pill.className = 'turn-pill';
+        pill.textContent = `${index + 1}. ${formatCombatantName(combatant, index)} (${combatant.type})`;
+        pill.dataset.index = index;
+        pill.setAttribute('role', 'option');
+        pill.addEventListener('click', () => setActiveCombatant(index));
+        if (index === activeCombatantIndex) {
+          pill.setAttribute('aria-current', 'true');
+        }
+        turnOrderContainer.appendChild(pill);
+      });
+
+      const activeCombatant = combatants[activeCombatantIndex];
+      currentTurnDisplay.textContent = `Current turn: ${formatCombatantName(
+        activeCombatant,
+        activeCombatantIndex
+      )} (${activeCombatant.type}) — Initiative ${activeCombatant.initiative}`;
+    }
+
+    prevCombatantButton.addEventListener('click', () => {
+      setActiveCombatant(activeCombatantIndex - 1);
+    });
+
+    nextCombatantButton.addEventListener('click', () => {
+      setActiveCombatant(activeCombatantIndex + 1);
+    });
+
     const damageInput = document.getElementById('damage-input');
     const addButton = document.getElementById('add-button');
     const undoButton = document.getElementById('undo-button');
@@ -387,23 +859,18 @@
     const remainingHpDisplay = document.getElementById('remaining-hp');
     const remainingHpWrapper = document.getElementById('remaining-hp-wrapper');
     const historyList = document.getElementById('history-list');
-    const emptyMessage = document.getElementById('empty-message');
-    const errorMessage = document.getElementById('error');
-    const monsterTabs = document.getElementById('monster-tabs');
-    const monsterNameInput = document.getElementById('monster-name-input');
-    const monsterHpInput = document.getElementById('monster-hp-input');
-    const addMonsterButton = document.getElementById('add-monster-button');
-    const monsterFormError = document.getElementById('monster-form-error');
-    const monsterNameDisplay = document.getElementById('monster-name-display');
+    const historyEmptyMessage = document.getElementById('history-empty');
+    const damageError = document.getElementById('damage-error');
+    const npcTabs = document.getElementById('npc-tabs');
+    const npcNameInput = document.getElementById('npc-name-input');
+    const npcHpInput = document.getElementById('npc-hp-input');
+    const addNpcButton = document.getElementById('add-npc-button');
+    const npcFormError = document.getElementById('npc-form-error');
+    const npcNameDisplay = document.getElementById('npc-name-display');
 
-    const DECIMAL_FACTOR = 10000;
-    const numberFormatter = new Intl.NumberFormat(undefined, {
-      maximumFractionDigits: 4,
-    });
-
-    const monsters = [];
-    let activeMonsterId = null;
-    let monsterCounter = 0;
+    const npcs = [];
+    let activeNpcId = null;
+    let npcCounter = 0;
 
     function parseEntry(rawValue) {
       if (!rawValue) {
@@ -435,99 +902,71 @@
       return Math.abs(normalized) < 1e-9 ? 0 : normalized;
     }
 
-    function getActiveMonster() {
-      return monsters.find((monster) => monster.id === activeMonsterId) ?? null;
+    function getActiveNpc() {
+      return npcs.find((npc) => npc.id === activeNpcId) ?? null;
     }
 
-    function createMonster({ name, fullHp }) {
-      monsterCounter += 1;
-      const trimmedName = (name ?? '').trim();
-      const monsterName = trimmedName || `Monster #${monsterCounter}`;
-      const sanitizedFullHp = typeof fullHp === 'number' ? normalizeTotal(fullHp) : null;
-
+    function createNpc({ name, fullHp }) {
       return {
-        id: `monster-${monsterCounter}`,
-        name: monsterName,
-        fullHp: sanitizedFullHp,
+        id: ++npcCounter,
+        name: name || `NPC #${npcCounter}`,
+        fullHp: fullHp ?? null,
         history: [],
         totalDamage: 0,
       };
     }
 
-    function ensureActiveMonster() {
-      if (monsters.length === 0) {
-        activeMonsterId = null;
-        return null;
-      }
+    function renderNpcTabs() {
+      npcTabs.innerHTML = '';
 
-      const current = getActiveMonster();
-      if (current) {
-        return current;
-      }
-
-      activeMonsterId = monsters[0].id;
-      return monsters[0];
-    }
-
-    function renderTabs() {
-      const activeMonster = ensureActiveMonster();
-
-      monsterTabs.innerHTML = '';
-
-      monsters.forEach((monster) => {
-        const isActive = activeMonster && monster.id === activeMonster.id;
+      npcs.forEach((npc, index) => {
         const tab = document.createElement('button');
         tab.type = 'button';
         tab.className = 'tab';
+        tab.textContent = npc.name;
         tab.setAttribute('role', 'tab');
-        tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
-        tab.setAttribute('tabindex', isActive ? '0' : '-1');
-        tab.textContent = monster.name;
+        tab.setAttribute('id', `npc-tab-${npc.id}`);
         tab.addEventListener('click', () => {
-          if (monster.id !== activeMonsterId) {
-            activeMonsterId = monster.id;
-            renderTabs();
-            refreshActiveMonster();
-          }
+          activeNpcId = npc.id;
+          refreshActiveNpc();
         });
-        monsterTabs.appendChild(tab);
+
+        if (npc.id === activeNpcId || (activeNpcId === null && index === 0)) {
+          activeNpcId = npc.id;
+          tab.setAttribute('aria-selected', 'true');
+        }
+
+        npcTabs.appendChild(tab);
       });
     }
 
-    function updateTotalDisplay(monster) {
-      totalDisplay.textContent = formatNumber(monster.totalDamage);
-    }
+    function updateNpcSummary(npc) {
+      npcNameDisplay.textContent = npc.name;
+      totalDisplay.textContent = formatNumber(npc.totalDamage);
 
-    function updateHpDisplay(monster) {
-      if (monster.fullHp == null) {
+      if (typeof npc.fullHp === 'number') {
+        const remaining = normalizeTotal(npc.fullHp - npc.totalDamage);
+        remainingHpDisplay.textContent = formatNumber(remaining);
+        remainingHpWrapper.hidden = false;
+      } else {
         remainingHpWrapper.hidden = true;
-        return;
       }
-
-      const remaining = normalizeTotal(monster.fullHp - monster.totalDamage);
-      const clamped = Math.max(Math.min(remaining, monster.fullHp), 0);
-      remainingHpDisplay.textContent = `${formatNumber(clamped)} / ${formatNumber(monster.fullHp)}`;
-      remainingHpWrapper.hidden = false;
     }
 
-    function updateMonsterSummary(monster) {
-      monsterNameDisplay.textContent = monster.name;
-      updateTotalDisplay(monster);
-      updateHpDisplay(monster);
-    }
-
-    function renderHistory(monster) {
+    function renderHistory(npc) {
       historyList.innerHTML = '';
 
-      if (!monster || monster.history.length === 0) {
-        emptyMessage.textContent = monster ? `No damage recorded for ${monster.name} yet.` : 'Add a monster to begin tracking damage.';
-        emptyMessage.style.display = 'block';
+      if (!npc || npc.history.length === 0) {
+        historyEmptyMessage.textContent = npc
+          ? `No damage recorded for ${npc.name} yet.`
+          : 'Add an NPC to begin tracking damage.';
+        historyEmptyMessage.style.display = 'block';
         return;
       }
 
-      emptyMessage.style.display = 'none';
+      historyEmptyMessage.style.display = 'none';
 
-      monster.history.forEach((entry, index) => {
+      npc.history.forEach((entry, index) => {
         const item = document.createElement('li');
         item.classList.add(entry.isHeal ? 'heal' : 'damage');
 
@@ -544,39 +983,48 @@
       });
     }
 
-    function refreshActiveMonster() {
-      const activeMonster = ensureActiveMonster();
+    function refreshActiveNpc() {
+      npcTabs.querySelectorAll('.tab').forEach((tab) => {
+        tab.removeAttribute('aria-selected');
+      });
 
-      if (!activeMonster) {
-        monsterNameDisplay.textContent = 'No monster selected';
+      const activeNpc = getActiveNpc();
+
+      if (!activeNpc) {
+        npcNameDisplay.textContent = 'No NPC selected';
         totalDisplay.textContent = formatNumber(0);
         remainingHpWrapper.hidden = true;
         renderHistory(null);
         return;
       }
 
-      updateMonsterSummary(activeMonster);
-      renderHistory(activeMonster);
-      clearError();
+      const activeTab = document.getElementById(`npc-tab-${activeNpc.id}`);
+      if (activeTab) {
+        activeTab.setAttribute('aria-selected', 'true');
+      }
+
+      updateNpcSummary(activeNpc);
+      renderHistory(activeNpc);
+      clearDamageError();
     }
 
-    function showError(message) {
-      errorMessage.textContent = message;
-      errorMessage.style.display = 'block';
+    function showDamageError(message) {
+      damageError.textContent = message;
+      damageError.style.display = 'block';
     }
 
-    function clearError() {
-      errorMessage.style.display = 'none';
+    function clearDamageError() {
+      damageError.style.display = 'none';
     }
 
-    function adjustTotal(monster, delta) {
-      monster.totalDamage = normalizeTotal(monster.totalDamage + delta);
+    function adjustTotal(npc, delta) {
+      npc.totalDamage = normalizeTotal(npc.totalDamage + delta);
     }
 
     function addEntry() {
-      const activeMonster = getActiveMonster();
-      if (!activeMonster) {
-        showError('Please add a monster before tracking damage.');
+      const activeNpc = getActiveNpc();
+      if (!activeNpc) {
+        showDamageError('Add an NPC before tracking damage.');
         return;
       }
 
@@ -584,86 +1032,89 @@
       const entry = parseEntry(rawValue);
 
       if (!entry) {
-        showError('Please enter a valid number.');
+        showDamageError('Please enter a valid number.');
         return;
       }
 
-      clearError();
-      activeMonster.history.push(entry);
-      adjustTotal(activeMonster, entry.effective);
-      updateMonsterSummary(activeMonster);
-      renderHistory(activeMonster);
+      clearDamageError();
+      activeNpc.history.push(entry);
+      adjustTotal(activeNpc, entry.effective);
+      updateNpcSummary(activeNpc);
+      renderHistory(activeNpc);
 
       damageInput.value = '';
       damageInput.focus();
     }
 
     function undoLastEntry() {
-      const activeMonster = getActiveMonster();
-      if (!activeMonster) {
+      const activeNpc = getActiveNpc();
+      if (!activeNpc) {
         return;
       }
 
-      const lastEntry = activeMonster.history.pop();
+      const lastEntry = activeNpc.history.pop();
       if (!lastEntry) {
         return;
       }
 
-      adjustTotal(activeMonster, -lastEntry.effective);
-      updateMonsterSummary(activeMonster);
-      renderHistory(activeMonster);
+      adjustTotal(activeNpc, -lastEntry.effective);
+      updateNpcSummary(activeNpc);
+      renderHistory(activeNpc);
     }
 
-    function resetCurrentMonster() {
-      const activeMonster = getActiveMonster();
-      if (!activeMonster) {
+    function resetCurrentNpc() {
+      const activeNpc = getActiveNpc();
+      if (!activeNpc) {
         return;
       }
 
-      activeMonster.history.length = 0;
-      activeMonster.totalDamage = 0;
-      updateMonsterSummary(activeMonster);
-      renderHistory(activeMonster);
-      clearError();
+      activeNpc.history.length = 0;
+      activeNpc.totalDamage = 0;
+      updateNpcSummary(activeNpc);
+      renderHistory(activeNpc);
+      clearDamageError();
       damageInput.value = '';
       damageInput.focus();
     }
 
-    function showMonsterFormError(message) {
-      monsterFormError.textContent = message;
-      monsterFormError.style.display = 'block';
+    function showNpcFormError(message) {
+      npcFormError.textContent = message;
+      npcFormError.style.display = 'block';
     }
 
-    function clearMonsterFormError() {
-      monsterFormError.textContent = '';
-      monsterFormError.style.display = 'none';
+    function clearNpcFormError() {
+      npcFormError.textContent = '';
+      npcFormError.style.display = 'none';
     }
 
-    function handleAddMonster() {
-      const name = monsterNameInput.value;
-      const rawFullHp = monsterHpInput.value.trim();
+    function handleAddNpc(name, fullHp) {
+      const npc = createNpc({ name, fullHp });
+      npcs.push(npc);
+      activeNpcId = npc.id;
+      renderNpcTabs();
+      refreshActiveNpc();
+    }
+
+    function onAddNpcClick() {
+      const name = npcNameInput.value.trim();
+      const rawFullHp = npcHpInput.value.trim();
 
       let parsedFullHp = null;
       if (rawFullHp) {
         const numericValue = parseFloat(rawFullHp);
         if (Number.isNaN(numericValue) || numericValue <= 0) {
-          showMonsterFormError('Please enter a positive number for full HP.');
-          monsterHpInput.focus();
+          showNpcFormError('Please enter a positive number for full HP.');
+          npcHpInput.focus();
           return;
         }
         parsedFullHp = numericValue;
       }
 
-      clearMonsterFormError();
+      clearNpcFormError();
+      handleAddNpc(name, parsedFullHp);
 
-      const monster = createMonster({ name, fullHp: parsedFullHp });
-      monsters.push(monster);
-      activeMonsterId = monster.id;
-      renderTabs();
-      refreshActiveMonster();
-
-      monsterNameInput.value = '';
-      monsterHpInput.value = '';
+      npcNameInput.value = '';
+      npcHpInput.value = '';
       damageInput.focus();
     }
 
@@ -677,24 +1128,47 @@
     });
 
     undoButton.addEventListener('click', undoLastEntry);
-    resetButton.addEventListener('click', resetCurrentMonster);
-    addMonsterButton.addEventListener('click', handleAddMonster);
+    resetButton.addEventListener('click', resetCurrentNpc);
+    addNpcButton.addEventListener('click', onAddNpcClick);
 
-    monsterNameInput.addEventListener('input', clearMonsterFormError);
-    monsterHpInput.addEventListener('input', clearMonsterFormError);
+    npcNameInput.addEventListener('input', clearNpcFormError);
+    npcHpInput.addEventListener('input', clearNpcFormError);
 
-    const handleMonsterFormKeydown = (event) => {
+    const handleNpcFormKeydown = (event) => {
       if (event.key === 'Enter') {
         event.preventDefault();
-        handleAddMonster();
+        onAddNpcClick();
       }
     };
 
-    monsterNameInput.addEventListener('keydown', handleMonsterFormKeydown);
-    monsterHpInput.addEventListener('keydown', handleMonsterFormKeydown);
+    npcNameInput.addEventListener('keydown', handleNpcFormKeydown);
+    npcHpInput.addEventListener('keydown', handleNpcFormKeydown);
 
-    // Initialize with a default monster tab.
-    handleAddMonster();
+    function finalizeInitiative() {
+      if (combatants.length === 0) {
+        return;
+      }
+
+      initiativeApp.hidden = true;
+      hpApp.hidden = false;
+
+      sortCombatants();
+      setActiveCombatant(0);
+
+      const npcCombatants = combatants.filter((combatant) => combatant.type === 'NPC');
+      npcCombatants.forEach((combatant, index) => {
+        handleAddNpc(formatCombatantName(combatant, index), null);
+      });
+
+      if (npcCombatants.length === 0) {
+        npcNameDisplay.textContent = 'No NPCs to track';
+      } else {
+        activeNpcId = npcs[0]?.id ?? null;
+        refreshActiveNpc();
+      }
+    }
+
+    finishInitiativeButton.addEventListener('click', finalizeInitiative);
   </script>
 </body>
 </html>
