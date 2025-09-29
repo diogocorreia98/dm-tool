@@ -301,6 +301,14 @@
       margin-bottom: 1.5rem;
     }
 
+    .initiative-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-top: 1.5rem;
+    }
+
     .combatant-manager input[type="text"],
     .combatant-manager input[type="number"] {
       width: 100%;
@@ -720,7 +728,13 @@
         </table>
         <p id="initiative-empty" class="empty-message">Add combatants to build the initiative order.</p>
       </div>
-      <div style="display: flex; justify-content: flex-end;">
+      <div class="initiative-actions">
+        <button id="initiative-export-button" class="secondary" type="button">
+          Export Encounter
+        </button>
+        <button id="initiative-import-button" class="secondary" type="button">
+          Import Encounter
+        </button>
         <button id="finish-initiative" type="button" disabled>Finish and Track HP</button>
       </div>
     </section>
@@ -1427,7 +1441,9 @@
     const undoButton = document.getElementById('undo-button');
     const resetButton = document.getElementById('reset-button');
     const exportButton = document.getElementById('export-button');
+    const initiativeExportButton = document.getElementById('initiative-export-button');
     const importButton = document.getElementById('import-button');
+    const initiativeImportButton = document.getElementById('initiative-import-button');
     const importInput = document.getElementById('import-input');
     const totalDisplay = document.getElementById('total-damage');
     const remainingHpDisplay = document.getElementById('remaining-hp');
@@ -2180,31 +2196,38 @@
       });
     }
 
-    if (exportButton) {
-      exportButton.addEventListener('click', () => {
-        try {
-          const state = buildEncounterState();
-          const json = JSON.stringify(state, null, 2);
-          const blob = new Blob([json], { type: 'application/json' });
-          const url = URL.createObjectURL(blob);
-          const anchor = document.createElement('a');
-          anchor.href = url;
-          anchor.download = `encounter-${new Date().toISOString().replace(/[.:]/g, '-')}.json`;
-          document.body.appendChild(anchor);
-          anchor.click();
-          anchor.remove();
-          setTimeout(() => URL.revokeObjectURL(url), 0);
-        } catch (error) {
-          console.error('Failed to export encounter', error);
-          window.alert('Unable to export the encounter. Please try again.');
-        }
-      });
+    function exportEncounter() {
+      try {
+        const state = buildEncounterState();
+        const json = JSON.stringify(state, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `encounter-${new Date().toISOString().replace(/[.:]/g, '-')}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+      } catch (error) {
+        console.error('Failed to export encounter', error);
+        window.alert('Unable to export the encounter. Please try again.');
+      }
     }
 
-    if (importButton && importInput) {
-      importButton.addEventListener('click', () => {
-        importInput.value = '';
-        importInput.click();
+    const exportButtons = [exportButton, initiativeExportButton].filter(Boolean);
+    exportButtons.forEach((button) => {
+      button.addEventListener('click', exportEncounter);
+    });
+
+    if (importInput) {
+      const importButtons = [importButton, initiativeImportButton].filter(Boolean);
+
+      importButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          importInput.value = '';
+          importInput.click();
+        });
       });
 
       importInput.addEventListener('change', async (event) => {
