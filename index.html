@@ -857,15 +857,23 @@
     let storedActiveCombatantId = null;
     let storedActiveNpcId = null;
 
+    function setFieldHiddenState(field, shouldHide) {
+      field.hidden = shouldHide;
+      field.setAttribute('aria-hidden', String(shouldHide));
+      field
+        .querySelectorAll('input, select, textarea, button')
+        .forEach((control) => {
+          control.disabled = shouldHide;
+        });
+    }
+
     function setFieldVisibility(mode) {
       const isManual = mode === 'manual';
       manualFields.forEach((field) => {
-        field.hidden = !isManual;
-        field.setAttribute('aria-hidden', String(!isManual));
+        setFieldHiddenState(field, !isManual);
       });
       autoFields.forEach((field) => {
-        field.hidden = isManual;
-        field.setAttribute('aria-hidden', String(isManual));
+        setFieldHiddenState(field, isManual);
       });
     }
 
