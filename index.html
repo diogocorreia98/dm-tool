@@ -755,13 +755,15 @@
     let activeCombatantId = null;
 
     function setFieldVisibility(mode) {
-      if (mode === 'manual') {
-        manualFields.forEach((field) => (field.hidden = false));
-        autoFields.forEach((field) => (field.hidden = true));
-      } else {
-        manualFields.forEach((field) => (field.hidden = true));
-        autoFields.forEach((field) => (field.hidden = false));
-      }
+      const isManual = mode === 'manual';
+      manualFields.forEach((field) => {
+        field.hidden = !isManual;
+        field.setAttribute('aria-hidden', String(!isManual));
+      });
+      autoFields.forEach((field) => {
+        field.hidden = isManual;
+        field.setAttribute('aria-hidden', String(isManual));
+      });
     }
 
     rollModeRadios.forEach((radio) => {
@@ -771,6 +773,8 @@
         }
       });
     });
+
+    setFieldVisibility(rollModeRadios.find((radio) => radio.checked)?.value ?? 'manual');
 
     function randomD20() {
       return Math.floor(Math.random() * 20) + 1;
