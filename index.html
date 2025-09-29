@@ -657,6 +657,52 @@
 
     <section class="combatant-manager" aria-label="Combatant management">
       <h2>Combatant Order</h2>
+      <div class="form-grid" style="margin-bottom: 1.25rem;">
+        <div class="field">
+          <label for="hp-combatant-name">Combatant Name</label>
+          <input id="hp-combatant-name" type="text" placeholder="e.g. Goblin" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="hp-combatant-type">Type</label>
+          <select id="hp-combatant-type">
+            <option value="PC">PC</option>
+            <option value="NPC">NPC</option>
+          </select>
+        </div>
+        <div class="field" style="grid-column: 1 / -1;">
+          <label>Roll Mode</label>
+          <div class="radio-group" role="radiogroup" aria-label="HP roll mode">
+            <label class="radio-option">
+              <input type="radio" name="hp-roll-mode" value="manual" checked />
+              Manual roll
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="hp-roll-mode" value="auto" />
+              Auto roll
+            </label>
+          </div>
+        </div>
+        <div class="field" data-hp-mode="manual">
+          <label for="hp-manual-initiative">Initiative Result</label>
+          <input id="hp-manual-initiative" type="number" inputmode="decimal" placeholder="e.g. 14" />
+        </div>
+        <div class="field" data-hp-mode="auto" hidden>
+          <label for="hp-auto-modifier">Initiative Modifier</label>
+          <input id="hp-auto-modifier" type="number" inputmode="decimal" placeholder="e.g. 2 or -1" value="0" />
+        </div>
+        <div class="field" data-hp-mode="auto" hidden>
+          <label for="hp-auto-advantage">Roll Style</label>
+          <select id="hp-auto-advantage">
+            <option value="neutral">Neutral</option>
+            <option value="adv">Advantage</option>
+            <option value="disadv">Disadvantage</option>
+          </select>
+        </div>
+        <div class="field" style="grid-column: 1 / -1;">
+          <button id="hp-add-combatant" type="button">Add Combatant</button>
+          <p id="hp-add-error" class="error" role="alert"></p>
+        </div>
+      </div>
       <table aria-live="polite">
         <thead>
           <tr>
@@ -664,6 +710,7 @@
             <th scope="col">Name</th>
             <th scope="col">Type</th>
             <th scope="col">Initiative</th>
+            <th scope="col">Actions</th>
           </tr>
         </thead>
         <tbody id="combatant-editor-body"></tbody>
@@ -698,7 +745,7 @@
         type="text"
         autocomplete="off"
         inputmode="decimal"
-        placeholder="Enter damage (e.g. 8 or +5 to heal)"
+        placeholder="Enter damage (e.g. 8 or +5/-5 to heal)"
         aria-label="Damage value"
       />
       <button id="add-button" type="button">Add</button>
@@ -743,6 +790,16 @@
     const combatantEditorBody = document.getElementById('combatant-editor-body');
     const combatantEditorEmpty = document.getElementById('combatant-editor-empty');
     const combatantEditError = document.getElementById('combatant-edit-error');
+    const hpCombatantNameInput = document.getElementById('hp-combatant-name');
+    const hpCombatantTypeSelect = document.getElementById('hp-combatant-type');
+    const hpRollModeRadios = Array.from(document.querySelectorAll('input[name="hp-roll-mode"]'));
+    const hpManualFields = document.querySelectorAll('[data-hp-mode="manual"]');
+    const hpAutoFields = document.querySelectorAll('[data-hp-mode="auto"]');
+    const hpManualInitiativeInput = document.getElementById('hp-manual-initiative');
+    const hpAutoModifierInput = document.getElementById('hp-auto-modifier');
+    const hpAutoAdvantageSelect = document.getElementById('hp-auto-advantage');
+    const hpAddCombatantButton = document.getElementById('hp-add-combatant');
+    const hpAddError = document.getElementById('hp-add-error');
 
     const DECIMAL_FACTOR = 10000;
     const numberFormatter = new Intl.NumberFormat(undefined, {
@@ -766,6 +823,36 @@
       });
     }
 
+    function setHpFieldVisibility(mode) {
+      const isManual = mode === 'manual';
+      hpManualFields.forEach((field) => {
+        field.hidden = !isManual;
+        field.setAttribute('aria-hidden', String(!isManual));
+      });
+      hpAutoFields.forEach((field) => {
+        field.hidden = isManual;
+        field.setAttribute('aria-hidden', String(isManual));
+      });
+    }
+
+    function showHpAddError(message) {
+      if (!hpAddError) {
+        return;
+      }
+
+      hpAddError.textContent = message;
+      hpAddError.style.display = 'block';
+    }
+
+    function clearHpAddError() {
+      if (!hpAddError) {
+        return;
+      }
+
+      hpAddError.textContent = '';
+      hpAddError.style.display = 'none';
+    }
+
     rollModeRadios.forEach((radio) => {
       radio.addEventListener('change', (event) => {
         if (event.target.checked) {
@@ -776,8 +863,46 @@
 
     setFieldVisibility(rollModeRadios.find((radio) => radio.checked)?.value ?? 'manual');
 
+    hpRollModeRadios.forEach((radio) => {
+      radio.addEventListener('change', (event) => {
+        if (event.target.checked) {
+          clearHpAddError();
+          setHpFieldVisibility(event.target.value);
+        }
+      });
+    });
+
+    setHpFieldVisibility(hpRollModeRadios.find((radio) => radio.checked)?.value ?? 'manual');
+
     function randomD20() {
       return Math.floor(Math.random() * 20) + 1;
+    }
+
+    function performAutoRoll(modifier, rollStyle) {
+      const rollOne = randomD20();
+      let chosenRoll = rollOne;
+      let rollSummary = `Rolled ${rollOne}`;
+
+      if (rollStyle === 'adv' || rollStyle === 'disadv') {
+        const rollTwo = randomD20();
+        if (rollStyle === 'adv') {
+          chosenRoll = Math.max(rollOne, rollTwo);
+          rollSummary = `Rolled ${rollOne} & ${rollTwo} (adv) → ${chosenRoll}`;
+        } else {
+          chosenRoll = Math.min(rollOne, rollTwo);
+          rollSummary = `Rolled ${rollOne} & ${rollTwo} (disadv) → ${chosenRoll}`;
+        }
+      }
+
+      const detail =
+        modifier === 0
+          ? rollSummary
+          : `${rollSummary} + ${modifier >= 0 ? modifier : `(${modifier})`}`;
+
+      return {
+        total: chosenRoll + modifier,
+        detail,
+      };
     }
 
     function clearInitiativeError() {
@@ -850,29 +975,13 @@
         }
 
         const rollStyle = autoAdvantageSelect.value;
-        const rollOne = randomD20();
-        let chosenRoll = rollOne;
-        let rollSummary = `Rolled ${rollOne}`;
-
-        if (rollStyle === 'adv' || rollStyle === 'disadv') {
-          const rollTwo = randomD20();
-          if (rollStyle === 'adv') {
-            chosenRoll = Math.max(rollOne, rollTwo);
-            rollSummary = `Rolled ${rollOne} & ${rollTwo} (adv) → ${chosenRoll}`;
-          } else {
-            chosenRoll = Math.min(rollOne, rollTwo);
-            rollSummary = `Rolled ${rollOne} & ${rollTwo} (disadv) → ${chosenRoll}`;
-          }
-        }
+        const { total, detail } = performAutoRoll(modifier, rollStyle);
 
         pushCombatant({
           name,
           type,
-          initiative: chosenRoll + modifier,
-          details:
-            modifier === 0
-              ? `${rollSummary}`
-              : `${rollSummary} + ${modifier >= 0 ? modifier : `(${modifier})`}`,
+          initiative: total,
+          details: detail,
         });
       }
 
@@ -949,6 +1058,101 @@
     [combatantNameInput, manualInitiativeInput, autoModifierInput].forEach((input) => {
       input.addEventListener('input', clearInitiativeError);
     });
+
+    function addCombatantFromHp() {
+      const name = hpCombatantNameInput.value.trim();
+      const type = hpCombatantTypeSelect.value;
+      const mode = hpRollModeRadios.find((radio) => radio.checked)?.value ?? 'manual';
+
+      let newCombatant = null;
+
+      if (mode === 'manual') {
+        const rawInitiative = hpManualInitiativeInput.value.trim();
+        if (rawInitiative === '') {
+          showHpAddError('Enter an initiative value for manual rolls.');
+          hpManualInitiativeInput.focus();
+          return;
+        }
+
+        const parsed = Number(rawInitiative);
+        if (!Number.isFinite(parsed)) {
+          showHpAddError('Initiative must be a number.');
+          hpManualInitiativeInput.focus();
+          return;
+        }
+
+        newCombatant = pushCombatant({
+          name,
+          type,
+          initiative: parsed,
+          details: 'Manual entry',
+        });
+      } else {
+        const rawModifier = hpAutoModifierInput.value.trim();
+        const modifier = rawModifier === '' ? 0 : Number(rawModifier);
+        if (!Number.isFinite(modifier)) {
+          showHpAddError('Enter a numeric initiative modifier.');
+          hpAutoModifierInput.focus();
+          return;
+        }
+
+        const rollStyle = hpAutoAdvantageSelect.value;
+        const { total, detail } = performAutoRoll(modifier, rollStyle);
+
+        newCombatant = pushCombatant({
+          name,
+          type,
+          initiative: total,
+          details: detail,
+        });
+      }
+
+      if (!newCombatant) {
+        return;
+      }
+
+      clearHpAddError();
+
+      hpCombatantNameInput.value = '';
+      hpManualInitiativeInput.value = '';
+      hpAutoModifierInput.value = '0';
+      hpAutoAdvantageSelect.value = 'neutral';
+
+      sortCombatants();
+      const newIndex = combatants.findIndex((combatant) => combatant.id === newCombatant.id);
+      const displayName =
+        newIndex >= 0 ? formatCombatantName(newCombatant, newIndex) : newCombatant.name;
+
+      activeCombatantId = newCombatant.id;
+
+      if (type === 'NPC') {
+        handleAddNpc({ name: displayName, fullHp: null, combatantId: newCombatant.id });
+      } else {
+        renderNpcTabs();
+        refreshActiveNpc();
+      }
+
+      renderTurnOrder();
+      clearCombatantEditError();
+      hpCombatantNameInput.focus();
+    }
+
+    if (hpAddCombatantButton) {
+      hpAddCombatantButton.addEventListener('click', addCombatantFromHp);
+    }
+
+    [hpCombatantNameInput, hpManualInitiativeInput, hpAutoModifierInput].forEach((input) => {
+      input.addEventListener('input', clearHpAddError);
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          addCombatantFromHp();
+        }
+      });
+    });
+
+    hpAutoAdvantageSelect.addEventListener('change', clearHpAddError);
+    hpCombatantTypeSelect.addEventListener('change', clearHpAddError);
 
     function setActiveCombatant(index) {
       if (combatants.length === 0) {
@@ -1033,6 +1237,59 @@
       combatantEditError.style.display = 'none';
     }
 
+    function removeCombatant(combatantId) {
+      const index = combatants.findIndex((combatant) => combatant.id === combatantId);
+      if (index === -1) {
+        return;
+      }
+
+      const displayName = formatCombatantName(combatants[index], index);
+      const [removed] = combatants.splice(index, 1);
+
+      let npcRemoved = false;
+      if (removed.type === 'NPC') {
+        let npcIndex = npcs.findIndex((npc) => npc.combatantId === combatantId);
+        if (npcIndex === -1 && removed.name) {
+          npcIndex = npcs.findIndex(
+            (npc) => npc.combatantId == null && npc.name === removed.name
+          );
+        }
+        if (npcIndex === -1 && displayName) {
+          npcIndex = npcs.findIndex(
+            (npc) => npc.combatantId == null && npc.name === displayName
+          );
+        }
+
+        if (npcIndex !== -1) {
+          const [removedNpc] = npcs.splice(npcIndex, 1);
+          if (activeNpcId === removedNpc.id) {
+            activeNpcId = npcs[0]?.id ?? null;
+          }
+          npcRemoved = true;
+        }
+      }
+
+      if (combatants.length === 0) {
+        activeCombatantIndex = 0;
+        activeCombatantId = null;
+      } else {
+        if (activeCombatantId === combatantId) {
+          activeCombatantIndex = Math.min(activeCombatantIndex, combatants.length - 1);
+          activeCombatantId = combatants[activeCombatantIndex]?.id ?? combatants[0].id;
+        } else if (index <= activeCombatantIndex) {
+          activeCombatantIndex = Math.max(0, activeCombatantIndex - 1);
+        }
+      }
+
+      clearCombatantEditError();
+      renderTurnOrder();
+
+      if (npcRemoved) {
+        renderNpcTabs();
+        refreshActiveNpc();
+      }
+    }
+
     function renderCombatantEditor() {
       if (!combatantEditorBody) {
         return;
@@ -1110,6 +1367,15 @@
         initiativeCell.appendChild(initiativeInput);
         row.appendChild(initiativeCell);
 
+        const actionCell = document.createElement('td');
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'secondary';
+        removeButton.textContent = 'Remove';
+        removeButton.addEventListener('click', () => removeCombatant(combatant.id));
+        actionCell.appendChild(removeButton);
+        row.appendChild(actionCell);
+
         combatantEditorBody.appendChild(row);
       });
     }
@@ -1147,19 +1413,39 @@
         return null;
       }
 
-      const isHeal = rawValue.startsWith('+');
-      const normalized = isHeal ? rawValue.slice(1) : rawValue;
+      const trimmed = rawValue.trim();
+      if (trimmed === '') {
+        return null;
+      }
+
+      let normalized = trimmed;
+      let isHeal = false;
+
+      if (normalized.startsWith('+')) {
+        isHeal = true;
+        normalized = normalized.slice(1);
+      } else if (normalized.startsWith('-')) {
+        isHeal = true;
+        normalized = normalized.slice(1);
+      }
+
+      if (normalized.trim() === '') {
+        return null;
+      }
+
       const numericValue = parseFloat(normalized);
 
       if (Number.isNaN(numericValue)) {
         return null;
       }
 
+      const magnitude = Math.abs(numericValue);
+
       return {
-        raw: rawValue,
-        magnitude: numericValue,
+        raw: trimmed,
+        magnitude,
         isHeal,
-        effective: isHeal ? -numericValue : numericValue,
+        effective: isHeal ? -magnitude : magnitude,
       };
     }
 
@@ -1191,6 +1477,7 @@
           id: npc.id,
           name: npc.name,
           fullHp: npc.fullHp,
+          combatantId: npc.combatantId,
           totalDamage: npc.totalDamage,
           history: npc.history.map((entry) => ({
             raw: entry.raw,
@@ -1263,6 +1550,12 @@
                     .filter(Boolean)
                 : [];
 
+              const combatantIdValue =
+                npcEntry?.combatantId === null || npcEntry?.combatantId === undefined
+                  ? null
+                  : Number(npcEntry.combatantId);
+              const combatantId = Number.isFinite(combatantIdValue) ? combatantIdValue : null;
+
               const computedTotal = normalizeTotal(
                 history.reduce((sum, entry) => sum + entry.effective, 0)
               );
@@ -1283,6 +1576,7 @@
                     ? npcEntry.name
                     : `NPC #${id}`,
                 fullHp: Number.isFinite(fullHpValue) ? fullHpValue : null,
+                combatantId,
                 history,
                 totalDamage: Math.abs(totalDamage - computedTotal) < 1e-6
                   ? totalDamage
@@ -1294,6 +1588,24 @@
 
       combatants.length = 0;
       sanitizedCombatants.forEach((combatant) => combatants.push(combatant));
+
+      sortCombatants();
+
+      const combatantIds = new Set(combatants.map((combatant) => combatant.id));
+      const displayNameToId = new Map();
+      combatants.forEach((combatant, index) => {
+        displayNameToId.set(formatCombatantName(combatant, index), combatant.id);
+      });
+
+      sanitizedNpcs.forEach((npc) => {
+        if (!combatantIds.has(npc.combatantId)) {
+          npc.combatantId = null;
+        }
+
+        if (npc.combatantId === null && displayNameToId.has(npc.name)) {
+          npc.combatantId = displayNameToId.get(npc.name) ?? null;
+        }
+      });
 
       const maxCombatantId = sanitizedCombatants.reduce(
         (max, combatant) => Math.max(max, combatant.id),
@@ -1347,11 +1659,12 @@
       return npcs.find((npc) => npc.id === activeNpcId) ?? null;
     }
 
-    function createNpc({ name, fullHp }) {
+    function createNpc({ name, fullHp, combatantId }) {
       return {
         id: ++npcCounter,
         name: name || `NPC #${npcCounter}`,
         fullHp: fullHp ?? null,
+        combatantId: typeof combatantId === 'number' ? combatantId : null,
         history: [],
         totalDamage: 0,
       };
@@ -1407,13 +1720,22 @@
 
       historyEmptyMessage.style.display = 'none';
 
-      npc.history.forEach((entry, index) => {
+      let damageCount = 0;
+      let healCount = 0;
+
+      npc.history.forEach((entry) => {
         const item = document.createElement('li');
         item.classList.add(entry.isHeal ? 'heal' : 'damage');
 
         const label = document.createElement('span');
         label.className = 'label';
-        label.textContent = `${entry.isHeal ? 'Heal' : 'Damage'} #${index + 1}`;
+        if (entry.isHeal) {
+          healCount += 1;
+          label.textContent = `Heal #${healCount}`;
+        } else {
+          damageCount += 1;
+          label.textContent = `Damage #${damageCount}`;
+        }
 
         const value = document.createElement('span');
         value.className = 'value';
@@ -1518,8 +1840,8 @@
       damageInput.focus();
     }
 
-    function handleAddNpc({ name, fullHp, initiative }) {
-      const npc = createNpc({ name, fullHp });
+    function handleAddNpc({ name, fullHp, initiative, combatantId }) {
+      const npc = createNpc({ name, fullHp, combatantId });
       npcs.push(npc);
       activeNpcId = npc.id;
       renderNpcTabs();
@@ -1532,6 +1854,8 @@
           initiative,
           details: 'Manual entry',
         });
+
+        npc.combatantId = newCombatant.id;
 
         if (activeCombatantId === null) {
           activeCombatantId = newCombatant.id;
@@ -1618,7 +1942,11 @@
 
       const npcCombatants = combatants.filter((combatant) => combatant.type === 'NPC');
       npcCombatants.forEach((combatant, index) => {
-        handleAddNpc({ name: formatCombatantName(combatant, index), fullHp: null });
+        handleAddNpc({
+          name: formatCombatantName(combatant, index),
+          fullHp: null,
+          combatantId: combatant.id,
+        });
       });
 
       if (npcCombatants.length === 0) {
