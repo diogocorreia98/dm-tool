@@ -954,7 +954,15 @@
     }
 
     function formatCombatantName(combatant, index) {
-      return combatant.name || `${combatant.type} #${index + 1}`;
+      const trimmedName = typeof combatant.name === 'string' ? combatant.name.trim() : '';
+      if (trimmedName) {
+        combatant.generatedName = null;
+        return trimmedName;
+      }
+
+      const generated = `Combatant #${index + 1}`;
+      combatant.generatedName = generated;
+      return generated;
     }
 
     function sortCombatants() {
@@ -969,11 +977,12 @@
     function pushCombatant({ name, type, initiative, details, npcId }) {
       const combatant = {
         id: ++combatantCounter,
-        name,
+        name: typeof name === 'string' ? name.trim() : '',
         type,
         initiative,
         details: details ?? 'Manual entry',
         npcId: Number.isFinite(npcId) ? npcId : null,
+        generatedName: null,
       };
       combatants.push(combatant);
       return combatant;
@@ -986,23 +995,27 @@
 
       if (mode === 'manual') {
         const rawInitiative = manualInitiativeInput.value.trim();
+        let initiativeValue = Number.NaN;
+        let details = 'Manual entry';
+
         if (rawInitiative === '') {
-          showInitiativeError('Enter an initiative value for manual rolls.');
-          manualInitiativeInput.focus();
-          return;
-        }
-        const parsed = Number(rawInitiative);
-        if (!Number.isFinite(parsed)) {
-          showInitiativeError('Please enter a valid number for initiative.');
-          manualInitiativeInput.focus();
-          return;
+          initiativeValue = randomD20();
+          details = 'Manual entry (randomized)';
+        } else {
+          const parsed = Number(rawInitiative);
+          if (!Number.isFinite(parsed)) {
+            showInitiativeError('Please enter a valid number for initiative.');
+            manualInitiativeInput.focus();
+            return;
+          }
+          initiativeValue = parsed;
         }
 
         pushCombatant({
           name,
           type,
-          initiative: parsed,
-          details: 'Manual entry',
+          initiative: initiativeValue,
+          details,
         });
       } else {
         const rawModifier = autoModifierInput.value.trim();
@@ -1285,6 +1298,7 @@
         nameInput.addEventListener('focus', clearCombatantEditError);
         nameInput.addEventListener('change', () => {
           combatant.name = nameInput.value.trim();
+          combatant.generatedName = null;
           clearCombatantEditError();
           renderTurnOrder();
         });
@@ -1510,6 +1524,8 @@
           initiative: combatant.initiative,
           details: combatant.details,
           npcId: combatant.npcId ?? null,
+          generatedName:
+            typeof combatant.generatedName === 'string' ? combatant.generatedName : null,
         })),
         activeCombatantId,
         npcCounter,
@@ -1558,6 +1574,8 @@
                 initiative,
                 details: typeof entry?.details === 'string' ? entry.details : '',
                 npcId: Number.isFinite(npcIdValue) ? npcIdValue : null,
+                generatedName:
+                  typeof entry?.generatedName === 'string' ? entry.generatedName : null,
               };
             })
             .filter(Boolean)
