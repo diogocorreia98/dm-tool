@@ -400,7 +400,8 @@
       margin-bottom: 1.25rem;
     }
 
-    .input-row input[type="text"] {
+    .input-row input[type="text"],
+    .input-row input[type="number"] {
       flex: 1;
       padding: 0.85rem 1rem;
       border: 2px solid #cfd8e3;
@@ -410,7 +411,8 @@
       color: #1f2933;
     }
 
-    .input-row input[type="text"]:focus {
+    .input-row input[type="text"]:focus,
+    .input-row input[type="number"]:focus {
       border-color: #5176ff;
       box-shadow: 0 0 0 3px rgba(81, 118, 255, 0.2);
       outline: none;
@@ -509,7 +511,8 @@
         color: #f8fafc;
       }
 
-      .input-row input[type="text"] {
+      .input-row input[type="text"],
+      .input-row input[type="number"] {
         background: rgba(15, 23, 42, 0.85);
         border-color: #475569;
         color: #f8fafc;
@@ -785,6 +788,19 @@
       <button id="add-button" type="button">Add</button>
     </div>
     <p id="damage-error" class="error" role="alert">Please enter a valid number.</p>
+
+    <div class="input-row">
+      <input
+        id="temp-hp-input"
+        type="number"
+        inputmode="decimal"
+        step="any"
+        placeholder="Set temporary HP"
+        aria-label="Temporary HP value"
+      />
+      <button id="set-temp-hp" type="button">Set Temp HP</button>
+    </div>
+    <p id="temp-hp-error" class="error" role="alert"></p>
 
     <div class="controls">
       <button id="undo-button" class="secondary" type="button">Undo</button>
@@ -1320,6 +1336,9 @@
     const historyList = document.getElementById('history-list');
     const historyEmptyMessage = document.getElementById('history-empty');
     const damageError = document.getElementById('damage-error');
+    const tempHpInput = document.getElementById('temp-hp-input');
+    const setTempHpButton = document.getElementById('set-temp-hp');
+    const tempHpError = document.getElementById('temp-hp-error');
     const npcTabs = document.getElementById('npc-tabs');
     const npcNameDisplay = document.getElementById('npc-name-display');
 
@@ -1364,7 +1383,7 @@
 
     function buildEncounterState() {
       return {
-        version: 1,
+        version: 2,
         exportedAt: new Date().toISOString(),
         encounterStarted: !hpApp.hidden,
         combatantCounter,
@@ -1383,12 +1402,15 @@
           name: npc.name,
           fullHp: npc.fullHp,
           totalDamage: npc.totalDamage,
+          tempHp: npc.tempHp,
           combatantId: npc.combatantId ?? null,
           history: npc.history.map((entry) => ({
             raw: entry.raw,
             magnitude: entry.magnitude,
             isHeal: entry.isHeal,
             effective: entry.effective,
+            hpDelta: entry.hpDelta,
+            tempDelta: entry.tempDelta,
           })),
         })),
         activeNpcId,
@@ -1447,29 +1469,49 @@
                           ? historyEntry.raw
                           : String(historyEntry?.raw ?? magnitude);
                       const effective = isHeal ? -magnitude : magnitude;
+                      const hpDeltaValue = Number(historyEntry?.hpDelta);
+                      const tempDeltaValue = Number(historyEntry?.tempDelta);
 
                       return {
                         raw,
                         magnitude,
                         isHeal,
                         effective,
+                        hpDelta: Number.isFinite(hpDeltaValue)
+                          ? normalizeTotal(hpDeltaValue)
+                          : normalizeTotal(effective),
+                        tempDelta: Number.isFinite(tempDeltaValue)
+                          ? normalizeTotal(tempDeltaValue)
+                          : 0,
                       };
                     })
                     .filter(Boolean)
                 : [];
 
-              const computedTotal = normalizeTotal(
-                history.reduce((sum, entry) => sum + entry.effective, 0)
+              const computedTotal = history.reduce(
+                (sum, entry) => sum + entry.hpDelta,
+                0
               );
               const declaredTotal = Number(npcEntry?.totalDamage);
-              const totalDamage = Number.isFinite(declaredTotal)
+              const normalizedDeclared = Number.isFinite(declaredTotal)
                 ? normalizeTotal(declaredTotal)
-                : computedTotal;
+                : null;
+              const normalizedComputed = Math.max(0, normalizeTotal(computedTotal));
+              const totalDamage =
+                normalizedDeclared !== null &&
+                Math.abs(normalizedDeclared - normalizedComputed) < 1e-6
+                  ? Math.max(0, normalizedDeclared)
+                  : normalizedComputed;
 
               const fullHpValue =
                 npcEntry?.fullHp === null || npcEntry?.fullHp === undefined
                   ? null
                   : Number(npcEntry.fullHp);
+
+              const tempHpValue =
+                npcEntry?.tempHp === null || npcEntry?.tempHp === undefined
+                  ? 0
+                  : Number(npcEntry.tempHp);
 
               const declaredCombatantId = Number(npcEntry?.combatantId);
 
@@ -1481,9 +1523,10 @@
                     : `NPC #${id}`,
                 fullHp: Number.isFinite(fullHpValue) ? fullHpValue : null,
                 history,
-                totalDamage: Math.abs(totalDamage - computedTotal) < 1e-6
-                  ? totalDamage
-                  : computedTotal,
+                totalDamage: totalDamage,
+                tempHp: Number.isFinite(tempHpValue)
+                  ? Math.max(0, normalizeTotal(tempHpValue))
+                  : 0,
                 combatantId: Number.isFinite(declaredCombatantId)
                   ? declaredCombatantId
                   : null,
@@ -1583,6 +1626,7 @@
         fullHp: fullHp ?? null,
         history: [],
         totalDamage: 0,
+        tempHp: 0,
         combatantId: Number.isFinite(combatantId) ? combatantId : null,
       };
     }
@@ -1612,8 +1656,15 @@
     }
 
     function updateNpcSummary(npc) {
+      npc.totalDamage = Math.max(0, normalizeTotal(npc.totalDamage));
       npcNameDisplay.textContent = npc.name;
       totalDisplay.textContent = formatNumber(npc.totalDamage);
+
+      const normalizedTemp = Math.max(0, normalizeTotal(Number(npc.tempHp) || 0));
+      npc.tempHp = normalizedTemp;
+      if (typeof npc.fullHp === 'number') {
+        npc.fullHp = Math.max(0, normalizeTotal(npc.fullHp));
+      }
 
       if (maxHpInput) {
         maxHpInput.disabled = false;
@@ -1625,8 +1676,17 @@
       }
 
       if (typeof npc.fullHp === 'number') {
-        const remaining = normalizeTotal(npc.fullHp - npc.totalDamage);
-        remainingHpDisplay.textContent = formatNumber(remaining);
+        const maxHp = npc.fullHp;
+        if (npc.totalDamage > maxHp) {
+          npc.totalDamage = maxHp;
+        }
+        if (npc.totalDamage < 0) {
+          npc.totalDamage = 0;
+        }
+        const remaining = Math.max(0, normalizeTotal(maxHp - npc.totalDamage));
+        const tempDisplay =
+          normalizedTemp > 0 ? ` + ${formatNumber(normalizedTemp)} temp` : '';
+        remainingHpDisplay.textContent = `${formatNumber(remaining)}${tempDisplay}`;
         remainingHpWrapper.hidden = false;
       } else {
         remainingHpWrapper.hidden = true;
@@ -1696,6 +1756,10 @@
       updateNpcSummary(activeNpc);
       renderHistory(activeNpc);
       clearDamageError();
+      clearTempHpError();
+      if (tempHpInput) {
+        tempHpInput.value = '';
+      }
     }
 
     function showDamageError(message) {
@@ -1707,8 +1771,75 @@
       damageError.style.display = 'none';
     }
 
-    function adjustTotal(npc, delta) {
-      npc.totalDamage = normalizeTotal(npc.totalDamage + delta);
+    function showTempHpError(message) {
+      if (!tempHpError) {
+        return;
+      }
+      tempHpError.textContent = message;
+      tempHpError.style.display = 'block';
+    }
+
+    function clearTempHpError() {
+      if (!tempHpError) {
+        return;
+      }
+      tempHpError.textContent = '';
+      tempHpError.style.display = 'none';
+    }
+
+    function applyEntryEffects(npc, entry) {
+      if (!Number.isFinite(npc.totalDamage)) {
+        npc.totalDamage = 0;
+      }
+      if (!Number.isFinite(npc.tempHp)) {
+        npc.tempHp = 0;
+      }
+
+      let hpDelta = 0;
+      let tempDelta = 0;
+
+      if (entry.isHeal) {
+        const healAmount = Math.min(entry.magnitude, npc.totalDamage);
+        if (healAmount > 0) {
+          npc.totalDamage = normalizeTotal(npc.totalDamage - healAmount);
+          hpDelta = -healAmount;
+        }
+        return {
+          hpDelta: normalizeTotal(hpDelta),
+          tempDelta: normalizeTotal(tempDelta),
+        };
+      }
+
+      let remaining = entry.magnitude;
+
+      if (npc.tempHp > 0) {
+        const consumed = Math.min(remaining, npc.tempHp);
+        if (consumed > 0) {
+          npc.tempHp = normalizeTotal(npc.tempHp - consumed);
+          tempDelta -= consumed;
+          remaining = normalizeTotal(remaining - consumed);
+        }
+      }
+
+      if (remaining > 0) {
+        const before = npc.totalDamage;
+        let after = before + remaining;
+        if (typeof npc.fullHp === 'number') {
+          const maxDamage = Math.max(0, normalizeTotal(npc.fullHp));
+          after = Math.min(after, maxDamage);
+        }
+        npc.totalDamage = normalizeTotal(after);
+        hpDelta = normalizeTotal(npc.totalDamage - before);
+      }
+
+      if (npc.tempHp < 0) {
+        npc.tempHp = 0;
+      }
+
+      return {
+        hpDelta: normalizeTotal(hpDelta),
+        tempDelta: normalizeTotal(tempDelta),
+      };
     }
 
     function addEntry() {
@@ -1727,8 +1858,10 @@
       }
 
       clearDamageError();
+      const { hpDelta, tempDelta } = applyEntryEffects(activeNpc, entry);
+      entry.hpDelta = hpDelta;
+      entry.tempDelta = tempDelta;
       activeNpc.history.push(entry);
-      adjustTotal(activeNpc, entry.effective);
       updateNpcSummary(activeNpc);
       renderHistory(activeNpc);
 
@@ -1747,7 +1880,25 @@
         return;
       }
 
-      adjustTotal(activeNpc, -lastEntry.effective);
+      const hpDelta = Number.isFinite(lastEntry.hpDelta)
+        ? lastEntry.hpDelta
+        : lastEntry.effective;
+      const tempDelta = Number.isFinite(lastEntry.tempDelta)
+        ? lastEntry.tempDelta
+        : 0;
+
+      activeNpc.totalDamage = normalizeTotal(activeNpc.totalDamage - hpDelta);
+      if (activeNpc.totalDamage < 0) {
+        activeNpc.totalDamage = 0;
+      }
+
+      if (tempDelta !== 0) {
+        activeNpc.tempHp = normalizeTotal(activeNpc.tempHp - tempDelta);
+        if (activeNpc.tempHp < 0) {
+          activeNpc.tempHp = 0;
+        }
+      }
+
       updateNpcSummary(activeNpc);
       renderHistory(activeNpc);
     }
@@ -1760,10 +1911,54 @@
 
       activeNpc.history.length = 0;
       activeNpc.totalDamage = 0;
+      activeNpc.tempHp = 0;
       updateNpcSummary(activeNpc);
       renderHistory(activeNpc);
       clearDamageError();
+      clearTempHpError();
       damageInput.value = '';
+      if (tempHpInput) {
+        tempHpInput.value = '';
+      }
+      damageInput.focus();
+    }
+
+    function setTempHp() {
+      if (!tempHpInput) {
+        return;
+      }
+      const activeNpc = getActiveNpc();
+      if (!activeNpc) {
+        showTempHpError('Add an NPC before assigning temporary HP.');
+        return;
+      }
+
+      const rawValue = tempHpInput.value.trim();
+
+      if (rawValue === '') {
+        activeNpc.tempHp = 0;
+        clearTempHpError();
+        updateNpcSummary(activeNpc);
+        damageInput.focus();
+        return;
+      }
+
+      const parsed = Number(rawValue);
+      if (!Number.isFinite(parsed)) {
+        showTempHpError('Please enter a valid number.');
+        return;
+      }
+
+      if (parsed < 0) {
+        showTempHpError('Temporary HP cannot be negative.');
+        return;
+      }
+
+      const normalized = normalizeTotal(Math.max(0, parsed));
+      activeNpc.tempHp = normalized;
+      clearTempHpError();
+      updateNpcSummary(activeNpc);
+      tempHpInput.value = '';
       damageInput.focus();
     }
 
@@ -1813,6 +2008,25 @@
       }
     });
 
+    if (setTempHpButton) {
+      setTempHpButton.addEventListener('click', setTempHp);
+    }
+
+    if (tempHpInput) {
+      tempHpInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          setTempHp();
+        }
+      });
+
+      tempHpInput.addEventListener('input', () => {
+        if (tempHpError && tempHpError.textContent) {
+          clearTempHpError();
+        }
+      });
+    }
+
     undoButton.addEventListener('click', undoLastEntry);
     resetButton.addEventListener('click', resetCurrentNpc);
 
@@ -1838,7 +2052,7 @@
           return;
         }
 
-        activeNpc.fullHp = normalizeTotal(parsed);
+        activeNpc.fullHp = Math.max(0, normalizeTotal(parsed));
         maxHpInput.value = String(activeNpc.fullHp);
         updateNpcSummary(activeNpc);
       });
