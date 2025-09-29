@@ -301,6 +301,10 @@
       box-sizing: border-box;
     }
 
+    .add-combatant-button {
+      margin-top: 1rem;
+    }
+
     .total {
       background-color: #274060;
       color: #f7faff;
@@ -731,6 +735,9 @@
       </table>
       <p id="combatant-editor-empty" class="empty-message">No combatants in this encounter yet.</p>
       <p id="combatant-edit-error" class="error" role="alert"></p>
+      <button id="hp-add-combatant" class="add-combatant-button" type="button">
+        Add New Combatant
+      </button>
     </section>
 
     <section class="monster-manager" aria-label="NPC selection">
@@ -808,6 +815,8 @@
     const initiativeTableBody = document.getElementById('initiative-tbody');
     const initiativeEmptyMessage = document.getElementById('initiative-empty');
     const finishInitiativeButton = document.getElementById('finish-initiative');
+    const finishInitiativeDefaultLabel =
+      finishInitiativeButton?.textContent ?? 'Finish and Track HP';
     const initiativeApp = document.getElementById('initiative-app');
     const hpApp = document.getElementById('hp-app');
     const turnOrderContainer = document.getElementById('turn-order');
@@ -817,6 +826,7 @@
     const combatantEditorBody = document.getElementById('combatant-editor-body');
     const combatantEditorEmpty = document.getElementById('combatant-editor-empty');
     const combatantEditError = document.getElementById('combatant-edit-error');
+    const addCombatantFromHpButton = document.getElementById('hp-add-combatant');
 
     const DECIMAL_FACTOR = 10000;
     const numberFormatter = new Intl.NumberFormat(undefined, {
@@ -827,6 +837,9 @@
     let combatantCounter = 0;
     let activeCombatantIndex = 0;
     let activeCombatantId = null;
+    let isAddingCombatantMidEncounter = false;
+    let storedActiveCombatantId = null;
+    let storedActiveNpcId = null;
 
     function setFieldVisibility(mode) {
       const isManual = mode === 'manual';
@@ -1040,6 +1053,16 @@
       renderTurnOrder();
     }
 
+    function setActiveCombatantById(preferredId) {
+      if (!Number.isFinite(preferredId)) {
+        setActiveCombatant(0);
+        return;
+      }
+
+      const targetIndex = combatants.findIndex((combatant) => combatant.id === preferredId);
+      setActiveCombatant(targetIndex === -1 ? 0 : targetIndex);
+    }
+
     function renderTurnOrder() {
       sortCombatants();
       const total = combatants.length;
@@ -1246,6 +1269,33 @@
 
         combatantEditorBody.appendChild(row);
       });
+    }
+
+    function startMidEncounterAddCombatant() {
+      if (!initiativeApp || !hpApp) {
+        return;
+      }
+
+      isAddingCombatantMidEncounter = true;
+      storedActiveCombatantId = activeCombatantId;
+      storedActiveNpcId = activeNpcId;
+
+      initiativeApp.hidden = false;
+      hpApp.hidden = true;
+
+      finishInitiativeButton.textContent = 'Save and Return to HP Tracker';
+      clearInitiativeError();
+
+      combatantNameInput.value = '';
+      manualInitiativeInput.value = '';
+      autoModifierInput.value = '0';
+
+      combatantNameInput.focus();
+      renderInitiativeTable();
+    }
+
+    if (addCombatantFromHpButton) {
+      addCombatantFromHpButton.addEventListener('click', startMidEncounterAddCombatant);
     }
 
     prevCombatantButton.addEventListener('click', () => {
@@ -1508,6 +1558,10 @@
 
       initiativeApp.hidden = encounterStarted;
       hpApp.hidden = !encounterStarted;
+      isAddingCombatantMidEncounter = false;
+      storedActiveCombatantId = null;
+      storedActiveNpcId = null;
+      finishInitiativeButton.textContent = finishInitiativeDefaultLabel;
 
       renderInitiativeTable();
       renderTurnOrder();
@@ -1864,30 +1918,84 @@
         return;
       }
 
-      initiativeApp.hidden = true;
-      hpApp.hidden = false;
-
       sortCombatants();
-      setActiveCombatant(0);
+      renderInitiativeTable();
 
-      const npcCombatants = combatants.filter((combatant) => combatant.type === 'NPC');
-      npcCombatants.forEach((combatant, index) => {
-        const npc = handleAddNpc({
-          name: formatCombatantName(combatant, index),
-          fullHp: null,
-          combatantId: combatant.id,
-        });
-        if (npc) {
+      const preferredCombatantId =
+        isAddingCombatantMidEncounter && Number.isFinite(storedActiveCombatantId)
+          ? storedActiveCombatantId
+          : null;
+
+      if (preferredCombatantId !== null) {
+        setActiveCombatantById(preferredCombatantId);
+      } else {
+        setActiveCombatant(0);
+      }
+
+      const hadNpcBeforeFinalize = npcs.length > 0;
+      const previousActiveNpcId =
+        isAddingCombatantMidEncounter && Number.isFinite(storedActiveNpcId)
+          ? storedActiveNpcId
+          : null;
+
+      combatants.forEach((combatant, index) => {
+        if (combatant.type === 'NPC' && combatant.npcId === null) {
+          const npc = createNpc({
+            name: formatCombatantName(combatant, index),
+            combatantId: combatant.id,
+          });
+          npcs.push(npc);
           combatant.npcId = npc.id;
+          npc.combatantId = combatant.id;
         }
       });
 
-      if (npcCombatants.length === 0) {
+      let shouldRefreshNpc = false;
+
+      if (npcs.length === 0) {
         npcNameDisplay.textContent = 'No NPCs to track';
+        historyList.innerHTML = '';
+        historyEmptyMessage.textContent =
+          'Finish initiative with at least one NPC to begin tracking damage.';
+        historyEmptyMessage.style.display = 'block';
+        totalDisplay.textContent = formatNumber(0);
+        remainingHpWrapper.hidden = true;
+        remainingHpDisplay.textContent = formatNumber(0);
+
+        if (maxHpInput) {
+          maxHpInput.value = '';
+          maxHpInput.disabled = true;
+        }
       } else {
-        activeNpcId = npcs[0]?.id ?? null;
+        if (isAddingCombatantMidEncounter) {
+          if (
+            previousActiveNpcId !== null &&
+            npcs.some((npc) => npc.id === previousActiveNpcId)
+          ) {
+            activeNpcId = previousActiveNpcId;
+          } else if (!hadNpcBeforeFinalize) {
+            activeNpcId = npcs[0].id;
+          } else if (!Number.isFinite(activeNpcId) || !npcs.some((npc) => npc.id === activeNpcId)) {
+            activeNpcId = npcs[0].id;
+          }
+        } else {
+          activeNpcId = npcs[0].id;
+        }
+
+        shouldRefreshNpc = true;
+      }
+
+      renderNpcTabs();
+      if (shouldRefreshNpc) {
         refreshActiveNpc();
       }
+
+      initiativeApp.hidden = true;
+      hpApp.hidden = false;
+      finishInitiativeButton.textContent = finishInitiativeDefaultLabel;
+      isAddingCombatantMidEncounter = false;
+      storedActiveCombatantId = null;
+      storedActiveNpcId = null;
     }
 
     finishInitiativeButton.addEventListener('click', finalizeInitiative);
