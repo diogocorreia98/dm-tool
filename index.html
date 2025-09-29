@@ -664,6 +664,7 @@
             <th scope="col">Name</th>
             <th scope="col">Type</th>
             <th scope="col">Initiative</th>
+            <th scope="col">Actions</th>
           </tr>
         </thead>
         <tbody id="combatant-editor-body"></tbody>
@@ -698,7 +699,7 @@
         type="text"
         autocomplete="off"
         inputmode="decimal"
-        placeholder="Enter damage (e.g. 8 or +5 to heal)"
+        placeholder="Enter damage (e.g. 8 or +5/-5 to heal)"
         aria-label="Damage value"
       />
       <button id="add-button" type="button">Add</button>
@@ -803,13 +804,14 @@
       });
     }
 
-    function pushCombatant({ name, type, initiative, details }) {
+    function pushCombatant({ name, type, initiative, details, npcId }) {
       const combatant = {
         id: ++combatantCounter,
         name,
         type,
         initiative,
         details: details ?? 'Manual entry',
+        npcId: Number.isFinite(npcId) ? npcId : null,
       };
       combatants.push(combatant);
       return combatant;
@@ -1033,6 +1035,50 @@
       combatantEditError.style.display = 'none';
     }
 
+    function removeCombatant(id) {
+      const index = combatants.findIndex((combatant) => combatant.id === id);
+      if (index === -1) {
+        return;
+      }
+
+      const [removed] = combatants.splice(index, 1);
+
+      if (combatants.length === 0) {
+        activeCombatantIndex = 0;
+        activeCombatantId = null;
+      } else if (removed.id === activeCombatantId) {
+        const newIndex = Math.min(index, combatants.length - 1);
+        activeCombatantIndex = newIndex;
+        activeCombatantId = combatants[newIndex].id;
+      } else {
+        const updatedIndex = combatants.findIndex(
+          (combatant) => combatant.id === activeCombatantId
+        );
+        if (updatedIndex !== -1) {
+          activeCombatantIndex = updatedIndex;
+        } else {
+          activeCombatantIndex = 0;
+          activeCombatantId = combatants[0].id;
+        }
+      }
+
+      const npcIndex = npcs.findIndex(
+        (npc) => npc.id === removed.npcId || npc.combatantId === removed.id
+      );
+      if (npcIndex !== -1) {
+        const [removedNpc] = npcs.splice(npcIndex, 1);
+        if (activeNpcId === removedNpc.id) {
+          activeNpcId = npcs[0]?.id ?? null;
+        }
+      }
+
+      clearCombatantEditError();
+      renderInitiativeTable();
+      renderTurnOrder();
+      renderNpcTabs();
+      refreshActiveNpc();
+    }
+
     function renderCombatantEditor() {
       if (!combatantEditorBody) {
         return;
@@ -1110,6 +1156,21 @@
         initiativeCell.appendChild(initiativeInput);
         row.appendChild(initiativeCell);
 
+        const actionsCell = document.createElement('td');
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'secondary';
+        removeButton.textContent = 'Remove';
+        removeButton.setAttribute(
+          'aria-label',
+          `Remove ${displayName} from the encounter`
+        );
+        removeButton.addEventListener('click', () => {
+          removeCombatant(combatant.id);
+        });
+        actionsCell.appendChild(removeButton);
+        row.appendChild(actionsCell);
+
         combatantEditorBody.appendChild(row);
       });
     }
@@ -1147,19 +1208,24 @@
         return null;
       }
 
-      const isHeal = rawValue.startsWith('+');
-      const normalized = isHeal ? rawValue.slice(1) : rawValue;
-      const numericValue = parseFloat(normalized);
-
-      if (Number.isNaN(numericValue)) {
+      const trimmed = rawValue.trim();
+      if (trimmed === '') {
         return null;
       }
 
+      const numericValue = Number(trimmed);
+      if (!Number.isFinite(numericValue)) {
+        return null;
+      }
+
+      const isHeal = trimmed.startsWith('+') || trimmed.startsWith('-');
+      const magnitude = Math.abs(numericValue);
+
       return {
-        raw: rawValue,
-        magnitude: numericValue,
+        raw: trimmed,
+        magnitude,
         isHeal,
-        effective: isHeal ? -numericValue : numericValue,
+        effective: isHeal ? -magnitude : magnitude,
       };
     }
 
@@ -1184,6 +1250,7 @@
           type: combatant.type,
           initiative: combatant.initiative,
           details: combatant.details,
+          npcId: combatant.npcId ?? null,
         })),
         activeCombatantId,
         npcCounter,
@@ -1192,6 +1259,7 @@
           name: npc.name,
           fullHp: npc.fullHp,
           totalDamage: npc.totalDamage,
+          combatantId: npc.combatantId ?? null,
           history: npc.history.map((entry) => ({
             raw: entry.raw,
             magnitude: entry.magnitude,
@@ -1219,12 +1287,15 @@
                 return null;
               }
 
+              const npcIdValue = Number(entry?.npcId);
+
               return {
                 id,
                 name: typeof entry?.name === 'string' ? entry.name : '',
                 type: typeof entry?.type === 'string' ? entry.type : 'Unknown',
                 initiative,
                 details: typeof entry?.details === 'string' ? entry.details : '',
+                npcId: Number.isFinite(npcIdValue) ? npcIdValue : null,
               };
             })
             .filter(Boolean)
@@ -1276,6 +1347,8 @@
                   ? null
                   : Number(npcEntry.fullHp);
 
+              const declaredCombatantId = Number(npcEntry?.combatantId);
+
               return {
                 id,
                 name:
@@ -1287,6 +1360,9 @@
                 totalDamage: Math.abs(totalDamage - computedTotal) < 1e-6
                   ? totalDamage
                   : computedTotal,
+                combatantId: Number.isFinite(declaredCombatantId)
+                  ? declaredCombatantId
+                  : null,
               };
             })
             .filter(Boolean)
@@ -1321,6 +1397,31 @@
       npcs.length = 0;
       sanitizedNpcs.forEach((npc) => npcs.push(npc));
 
+      const combatantById = new Map(combatants.map((combatant) => [combatant.id, combatant]));
+      const npcById = new Map(npcs.map((npc) => [npc.id, npc]));
+
+      combatants.forEach((combatant) => {
+        if (combatant.npcId !== null) {
+          const linkedNpc = npcById.get(combatant.npcId);
+          if (!linkedNpc) {
+            combatant.npcId = null;
+          } else if (linkedNpc.combatantId === null) {
+            linkedNpc.combatantId = combatant.id;
+          }
+        }
+      });
+
+      npcs.forEach((npc) => {
+        if (npc.combatantId !== null) {
+          const linkedCombatant = combatantById.get(npc.combatantId);
+          if (!linkedCombatant) {
+            npc.combatantId = null;
+          } else {
+            linkedCombatant.npcId = npc.id;
+          }
+        }
+      });
+
       const maxNpcId = sanitizedNpcs.reduce((max, npc) => Math.max(max, npc.id), 0);
       const declaredNpcCounter = Number(rawState.npcCounter);
       npcCounter = Number.isFinite(declaredNpcCounter)
@@ -1347,13 +1448,14 @@
       return npcs.find((npc) => npc.id === activeNpcId) ?? null;
     }
 
-    function createNpc({ name, fullHp }) {
+    function createNpc({ name, fullHp, combatantId }) {
       return {
         id: ++npcCounter,
         name: name || `NPC #${npcCounter}`,
         fullHp: fullHp ?? null,
         history: [],
         totalDamage: 0,
+        combatantId: Number.isFinite(combatantId) ? combatantId : null,
       };
     }
 
@@ -1407,13 +1509,17 @@
 
       historyEmptyMessage.style.display = 'none';
 
-      npc.history.forEach((entry, index) => {
+      let damageCount = 0;
+      let healCount = 0;
+
+      npc.history.forEach((entry) => {
         const item = document.createElement('li');
         item.classList.add(entry.isHeal ? 'heal' : 'damage');
 
         const label = document.createElement('span');
         label.className = 'label';
-        label.textContent = `${entry.isHeal ? 'Heal' : 'Damage'} #${index + 1}`;
+        const labelNumber = entry.isHeal ? ++healCount : ++damageCount;
+        label.textContent = `${entry.isHeal ? 'Heal' : 'Damage'} #${labelNumber}`;
 
         const value = document.createElement('span');
         value.className = 'value';
@@ -1518,8 +1624,8 @@
       damageInput.focus();
     }
 
-    function handleAddNpc({ name, fullHp, initiative }) {
-      const npc = createNpc({ name, fullHp });
+    function handleAddNpc({ name, fullHp, initiative, combatantId }) {
+      const npc = createNpc({ name, fullHp, combatantId });
       npcs.push(npc);
       activeNpcId = npc.id;
       renderNpcTabs();
@@ -1531,7 +1637,10 @@
           type: 'NPC',
           initiative,
           details: 'Manual entry',
+          npcId: npc.id,
         });
+
+        npc.combatantId = newCombatant.id;
 
         if (activeCombatantId === null) {
           activeCombatantId = newCombatant.id;
@@ -1539,7 +1648,17 @@
 
         renderTurnOrder();
         clearCombatantEditError();
+      } else if (Number.isFinite(combatantId)) {
+        const existingCombatant = combatants.find(
+          (combatant) => combatant.id === combatantId
+        );
+        if (existingCombatant) {
+          existingCombatant.npcId = npc.id;
+          npc.combatantId = existingCombatant.id;
+        }
       }
+
+      return npc;
     }
 
     addButton.addEventListener('click', addEntry);
@@ -1618,7 +1737,14 @@
 
       const npcCombatants = combatants.filter((combatant) => combatant.type === 'NPC');
       npcCombatants.forEach((combatant, index) => {
-        handleAddNpc({ name: formatCombatantName(combatant, index), fullHp: null });
+        const npc = handleAddNpc({
+          name: formatCombatantName(combatant, index),
+          fullHp: null,
+          combatantId: combatant.id,
+        });
+        if (npc) {
+          combatant.npcId = npc.id;
+        }
       });
 
       if (npcCombatants.length === 0) {
