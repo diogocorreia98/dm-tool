@@ -93,6 +93,18 @@
       color: rgba(39, 64, 96, 0.6);
     }
 
+    .visually-hidden {
+      position: absolute !important;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
     .radio-group {
       display: flex;
       gap: 1rem;
@@ -328,6 +340,54 @@
       font-size: 2rem;
       font-variant-numeric: tabular-nums;
       font-weight: 700;
+    }
+
+    .metric--muted {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .metric--muted .metric-label {
+      color: rgba(247, 250, 255, 0.65);
+    }
+
+    .metric--muted .metric-value {
+      font-size: 1.6rem;
+      font-weight: 600;
+      color: rgba(247, 250, 255, 0.85);
+    }
+
+    .max-hp-control {
+      margin-top: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      max-width: 220px;
+    }
+
+    .max-hp-control label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(247, 250, 255, 0.7);
+    }
+
+    .max-hp-control input[type="number"] {
+      padding: 0.65rem 0.75rem;
+      border-radius: 8px;
+      border: none;
+      font-size: 1rem;
+      background: rgba(255, 255, 255, 0.18);
+      color: #f7faff;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+    }
+
+    .max-hp-control input[type="number"]:focus {
+      outline: 3px solid rgba(255, 255, 255, 0.4);
+      outline-offset: 2px;
+    }
+
+    .max-hp-control input[type="number"]::placeholder {
+      color: rgba(247, 250, 255, 0.7);
     }
 
     .input-row {
@@ -686,10 +746,23 @@
           <span class="metric-label">Total Damage</span>
           <span id="total-damage" class="metric-value">0</span>
         </div>
-        <div id="remaining-hp-wrapper" class="metric" hidden>
+        <div id="remaining-hp-wrapper" class="metric metric--muted" hidden>
           <span class="metric-label">Remaining HP</span>
           <span id="remaining-hp" class="metric-value">0</span>
         </div>
+      </div>
+      <div class="max-hp-control">
+        <label for="max-hp-input">Max HP</label>
+        <input
+          id="max-hp-input"
+          type="number"
+          inputmode="decimal"
+          step="any"
+          placeholder="Set max HP"
+          aria-describedby="max-hp-help"
+          disabled
+        />
+        <span id="max-hp-help" class="visually-hidden">Leave blank if no max HP is needed.</span>
       </div>
     </section>
 
@@ -1193,6 +1266,7 @@
     const totalDisplay = document.getElementById('total-damage');
     const remainingHpDisplay = document.getElementById('remaining-hp');
     const remainingHpWrapper = document.getElementById('remaining-hp-wrapper');
+    const maxHpInput = document.getElementById('max-hp-input');
     const historyList = document.getElementById('history-list');
     const historyEmptyMessage = document.getElementById('history-empty');
     const damageError = document.getElementById('damage-error');
@@ -1487,12 +1561,22 @@
       npcNameDisplay.textContent = npc.name;
       totalDisplay.textContent = formatNumber(npc.totalDamage);
 
+      if (maxHpInput) {
+        maxHpInput.disabled = false;
+        if (typeof npc.fullHp === 'number') {
+          maxHpInput.value = String(npc.fullHp);
+        } else {
+          maxHpInput.value = '';
+        }
+      }
+
       if (typeof npc.fullHp === 'number') {
         const remaining = normalizeTotal(npc.fullHp - npc.totalDamage);
         remainingHpDisplay.textContent = formatNumber(remaining);
         remainingHpWrapper.hidden = false;
       } else {
         remainingHpWrapper.hidden = true;
+        remainingHpDisplay.textContent = formatNumber(0);
       }
     }
 
@@ -1541,6 +1625,11 @@
         npcNameDisplay.textContent = 'No NPC selected';
         totalDisplay.textContent = formatNumber(0);
         remainingHpWrapper.hidden = true;
+        remainingHpDisplay.textContent = formatNumber(0);
+        if (maxHpInput) {
+          maxHpInput.value = '';
+          maxHpInput.disabled = true;
+        }
         renderHistory(null);
         return;
       }
@@ -1672,6 +1761,52 @@
 
     undoButton.addEventListener('click', undoLastEntry);
     resetButton.addEventListener('click', resetCurrentNpc);
+
+    if (maxHpInput) {
+      maxHpInput.addEventListener('change', () => {
+        const activeNpc = getActiveNpc();
+        if (!activeNpc) {
+          maxHpInput.value = '';
+          return;
+        }
+
+        const rawValue = maxHpInput.value.trim();
+        if (rawValue === '') {
+          activeNpc.fullHp = null;
+          updateNpcSummary(activeNpc);
+          return;
+        }
+
+        const parsed = Number(rawValue);
+        if (!Number.isFinite(parsed)) {
+          maxHpInput.value =
+            typeof activeNpc.fullHp === 'number' ? String(activeNpc.fullHp) : '';
+          return;
+        }
+
+        activeNpc.fullHp = normalizeTotal(parsed);
+        maxHpInput.value = String(activeNpc.fullHp);
+        updateNpcSummary(activeNpc);
+      });
+
+      maxHpInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          maxHpInput.blur();
+        }
+      });
+
+      maxHpInput.addEventListener('blur', () => {
+        const activeNpc = getActiveNpc();
+        if (!activeNpc) {
+          maxHpInput.value = '';
+          return;
+        }
+
+        maxHpInput.value =
+          typeof activeNpc.fullHp === 'number' ? String(activeNpc.fullHp) : '';
+      });
+    }
 
     if (exportButton) {
       exportButton.addEventListener('click', () => {
