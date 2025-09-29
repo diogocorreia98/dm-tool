@@ -295,6 +295,12 @@
       margin-bottom: 0.5rem;
     }
 
+    .combatant-manager-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 1.5rem;
+    }
+
     .combatant-manager input[type="text"],
     .combatant-manager input[type="number"] {
       width: 100%;
@@ -303,6 +309,13 @@
 
     .add-combatant-button {
       margin-top: 1rem;
+    }
+
+    .combatant-editor-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
     }
 
     .total {
@@ -714,7 +727,7 @@
   </main>
 
   <main id="hp-app" class="app" aria-labelledby="hp-title" hidden>
-    <h1 id="hp-title">HP Tracker</h1>
+    <h1 id="hp-title" tabindex="-1">HP Tracker</h1>
     <section class="turn-tracker" aria-label="Turn navigation">
       <button id="prev-combatant" class="secondary" type="button">Previous</button>
       <div class="turn-order" id="turn-order" role="listbox" aria-label="Combatants"></div>
@@ -723,24 +736,11 @@
     <p id="current-turn" class="current-turn" aria-live="polite"></p>
 
     <section class="combatant-manager" aria-label="Combatant management">
-      <h2>Combatant Order</h2>
-      <table aria-live="polite">
-        <thead>
-          <tr>
-            <th scope="col">#</th>
-            <th scope="col">Name</th>
-            <th scope="col">Type</th>
-            <th scope="col">Initiative</th>
-            <th scope="col">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="combatant-editor-body"></tbody>
-      </table>
-      <p id="combatant-editor-empty" class="empty-message">No combatants in this encounter yet.</p>
-      <p id="combatant-edit-error" class="error" role="alert"></p>
-      <button id="hp-add-combatant" class="add-combatant-button" type="button">
-        Add New Combatant
-      </button>
+      <div class="combatant-manager-actions">
+        <button id="open-combatant-editor" class="secondary" type="button">
+          Edit Combatant List
+        </button>
+      </div>
     </section>
 
     <section class="monster-manager" aria-label="NPC selection">
@@ -817,6 +817,40 @@
     </section>
   </main>
 
+  <main
+    id="combatant-editor-app"
+    class="app"
+    aria-labelledby="combatant-editor-title"
+    hidden
+  >
+    <h1 id="combatant-editor-title" tabindex="-1">Combatant List Editor</h1>
+    <section class="combatant-manager" aria-label="Combatant list management">
+      <h2>Combatant Order</h2>
+      <table aria-live="polite">
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Name</th>
+            <th scope="col">Type</th>
+            <th scope="col">Initiative</th>
+            <th scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="combatant-editor-body"></tbody>
+      </table>
+      <p id="combatant-editor-empty" class="empty-message">No combatants in this encounter yet.</p>
+      <p id="combatant-edit-error" class="error" role="alert"></p>
+      <button id="hp-add-combatant" class="add-combatant-button" type="button">
+        Add New Combatant
+      </button>
+    </section>
+    <div class="combatant-editor-actions">
+      <button id="combatant-editor-done" class="secondary" type="button">
+        Done Editing
+      </button>
+    </div>
+  </main>
+
   <script>
     const combatantNameInput = document.getElementById('combatant-name');
     const combatantTypeSelect = document.getElementById('combatant-type');
@@ -835,6 +869,7 @@
       finishInitiativeButton?.textContent ?? 'Finish and Track HP';
     const initiativeApp = document.getElementById('initiative-app');
     const hpApp = document.getElementById('hp-app');
+    const combatantEditorApp = document.getElementById('combatant-editor-app');
     const turnOrderContainer = document.getElementById('turn-order');
     const prevCombatantButton = document.getElementById('prev-combatant');
     const nextCombatantButton = document.getElementById('next-combatant');
@@ -843,6 +878,8 @@
     const combatantEditorEmpty = document.getElementById('combatant-editor-empty');
     const combatantEditError = document.getElementById('combatant-edit-error');
     const addCombatantFromHpButton = document.getElementById('hp-add-combatant');
+    const openCombatantEditorButton = document.getElementById('open-combatant-editor');
+    const closeCombatantEditorButton = document.getElementById('combatant-editor-done');
 
     const DECIMAL_FACTOR = 10000;
     const numberFormatter = new Intl.NumberFormat(undefined, {
@@ -856,6 +893,7 @@
     let isAddingCombatantMidEncounter = false;
     let storedActiveCombatantId = null;
     let storedActiveNpcId = null;
+    let midEncounterReturnTarget = 'hp';
 
     function setFieldHiddenState(field, shouldHide) {
       field.hidden = shouldHide;
@@ -1295,6 +1333,47 @@
       });
     }
 
+    function openCombatantEditor() {
+      if (!combatantEditorApp || !hpApp) {
+        return;
+      }
+
+      hpApp.hidden = true;
+      combatantEditorApp.hidden = false;
+      clearCombatantEditError();
+      renderCombatantEditor();
+
+      const heading = document.getElementById('combatant-editor-title');
+      if (heading) {
+        heading.focus();
+      }
+    }
+
+    function closeCombatantEditor() {
+      if (!combatantEditorApp || !hpApp) {
+        return;
+      }
+
+      combatantEditorApp.hidden = true;
+      hpApp.hidden = false;
+      midEncounterReturnTarget = 'hp';
+      clearCombatantEditError();
+      renderTurnOrder();
+
+      const hpHeading = document.getElementById('hp-title');
+      if (hpHeading) {
+        hpHeading.focus();
+      }
+    }
+
+    if (openCombatantEditorButton) {
+      openCombatantEditorButton.addEventListener('click', openCombatantEditor);
+    }
+
+    if (closeCombatantEditorButton) {
+      closeCombatantEditorButton.addEventListener('click', closeCombatantEditor);
+    }
+
     function startMidEncounterAddCombatant() {
       if (!initiativeApp || !hpApp) {
         return;
@@ -1304,10 +1383,23 @@
       storedActiveCombatantId = activeCombatantId;
       storedActiveNpcId = activeNpcId;
 
+      if (combatantEditorApp && !combatantEditorApp.hidden) {
+        midEncounterReturnTarget = 'combatant-editor';
+      } else {
+        midEncounterReturnTarget = 'hp';
+      }
+
       initiativeApp.hidden = false;
       hpApp.hidden = true;
+      if (combatantEditorApp) {
+        combatantEditorApp.hidden = true;
+      }
 
-      finishInitiativeButton.textContent = 'Save and Return to HP Tracker';
+      const midEncounterLabel =
+        midEncounterReturnTarget === 'combatant-editor'
+          ? 'Save and Return to Combatant List Editor'
+          : 'Save and Return to HP Tracker';
+      finishInitiativeButton.textContent = midEncounterLabel;
       clearInitiativeError();
 
       combatantNameInput.value = '';
@@ -1609,9 +1701,13 @@
 
       initiativeApp.hidden = encounterStarted;
       hpApp.hidden = !encounterStarted;
+      if (combatantEditorApp) {
+        combatantEditorApp.hidden = true;
+      }
       isAddingCombatantMidEncounter = false;
       storedActiveCombatantId = null;
       storedActiveNpcId = null;
+      midEncounterReturnTarget = 'hp';
       finishInitiativeButton.textContent = finishInitiativeDefaultLabel;
 
       renderInitiativeTable();
@@ -2213,11 +2309,38 @@
       }
 
       initiativeApp.hidden = true;
-      hpApp.hidden = false;
+      clearCombatantEditError();
+
+      if (
+        isAddingCombatantMidEncounter &&
+        midEncounterReturnTarget === 'combatant-editor' &&
+        combatantEditorApp
+      ) {
+        combatantEditorApp.hidden = false;
+        hpApp.hidden = true;
+        renderCombatantEditor();
+
+        const heading = document.getElementById('combatant-editor-title');
+        if (heading) {
+          heading.focus();
+        }
+      } else {
+        hpApp.hidden = false;
+        if (combatantEditorApp) {
+          combatantEditorApp.hidden = true;
+        }
+
+        const hpHeading = document.getElementById('hp-title');
+        if (hpHeading) {
+          hpHeading.focus();
+        }
+      }
+
       finishInitiativeButton.textContent = finishInitiativeDefaultLabel;
       isAddingCombatantMidEncounter = false;
       storedActiveCombatantId = null;
       storedActiveNpcId = null;
+      midEncounterReturnTarget = 'hp';
     }
 
     finishInitiativeButton.addEventListener('click', finalizeInitiative);
