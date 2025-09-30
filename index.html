@@ -161,6 +161,85 @@
       box-shadow: none;
     }
 
+    .session-share {
+      border: 1px solid #cfd8e3;
+      border-radius: 12px;
+      padding: 1.25rem;
+      background: rgba(81, 118, 255, 0.08);
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .session-share__header {
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    .session-share__controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .session-share__details {
+      display: grid;
+      gap: 0.65rem;
+    }
+
+    .session-share__row {
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    .session-share__label {
+      font-size: 0.8rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #4a5d78;
+    }
+
+    .session-share__code {
+      font-family: 'Fira Code', 'Source Code Pro', monospace;
+      font-size: 1.25rem;
+      letter-spacing: 0.12em;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid #cfd8e3;
+      border-radius: 10px;
+      padding: 0.6rem 0.9rem;
+      text-align: center;
+      color: #1f2933;
+    }
+
+    .session-share__link {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .session-share__link input {
+      flex: 1;
+      min-width: 220px;
+      padding: 0.7rem 0.85rem;
+      border: 1px solid #cfd8e3;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.9);
+      font-size: 0.95rem;
+    }
+
+    .session-share__status {
+      font-size: 0.9rem;
+      color: #4a5d78;
+      min-height: 1.1rem;
+    }
+
+    .player-status {
+      font-size: 0.9rem;
+      color: #4a5d78;
+      min-height: 1.1rem;
+    }
+
     .error {
       color: #c62828;
       font-size: 0.9rem;
@@ -548,6 +627,29 @@
         border-color: #475569;
       }
 
+      .session-share {
+        background: rgba(37, 99, 235, 0.12);
+        border-color: #334155;
+      }
+
+      .session-share__code {
+        background: rgba(15, 23, 42, 0.85);
+        border-color: #475569;
+        color: #e2e8f0;
+      }
+
+      .session-share__link input {
+        background: rgba(15, 23, 42, 0.85);
+        border-color: #475569;
+        color: #f8fafc;
+      }
+
+      .session-share__label,
+      .session-share__status,
+      .player-status {
+        color: #cbd5f5;
+      }
+
       .turn-pill {
         background: rgba(59, 130, 246, 0.2);
         color: #bfdbfe;
@@ -665,6 +767,35 @@
 <body>
   <main id="initiative-app" class="app" aria-labelledby="initiative-title">
     <h1 id="initiative-title">Initiative Tracker</h1>
+    <section class="session-share" aria-label="Share player submission session">
+      <div class="session-share__header">
+        <h2>Player Submissions</h2>
+        <p>Share a code so players can send their initiative directly to you.</p>
+      </div>
+      <div class="session-share__controls">
+        <button id="player-session-start" type="button">Enable Player Entry</button>
+        <button id="player-session-stop" class="secondary" type="button" hidden>
+          Disable Player Entry
+        </button>
+      </div>
+      <div id="player-session-details" class="session-share__details" hidden>
+        <div class="session-share__row">
+          <span class="session-share__label">Session Code</span>
+          <span id="player-session-code" class="session-share__code" aria-live="polite"></span>
+        </div>
+        <div class="session-share__row">
+          <span class="session-share__label">Join Link</span>
+          <div class="session-share__link">
+            <input id="player-session-link" type="text" readonly aria-label="Player join link" />
+            <button id="copy-player-session-link" class="secondary" type="button">
+              Copy Link
+            </button>
+          </div>
+        </div>
+      </div>
+      <p id="player-session-status" class="session-share__status" role="status"></p>
+      <p id="player-session-warning" class="error" role="alert"></p>
+    </section>
     <section class="section" aria-label="Initiative entry">
       <div class="form-grid">
         <div class="field">
@@ -865,6 +996,96 @@
     </div>
   </main>
 
+  <main id="player-app" class="app" aria-labelledby="player-app-title" hidden>
+    <h1 id="player-app-title">Player Initiative Entry</h1>
+    <p class="player-status" role="status" id="player-view-support-message"></p>
+    <section class="section" aria-label="Connect to DM session">
+      <div class="form-grid">
+        <div class="field" style="grid-column: 1 / -1;">
+          <label for="player-session-code-input">Session Code</label>
+          <input
+            id="player-session-code-input"
+            type="text"
+            inputmode="text"
+            autocomplete="off"
+            placeholder="Enter the code from your DM"
+          />
+        </div>
+        <div class="field" style="grid-column: 1 / -1;">
+          <button id="player-session-connect" type="button">Connect</button>
+        </div>
+      </div>
+      <p id="player-session-connect-error" class="error" role="alert"></p>
+      <p id="player-session-connect-status" class="player-status" role="status"></p>
+    </section>
+
+    <section id="player-entry-section" class="section" aria-label="Submit your initiative" hidden>
+      <div class="form-grid">
+        <div class="field">
+          <label for="player-combatant-name">Your Name</label>
+          <input
+            id="player-combatant-name"
+            type="text"
+            placeholder="e.g. Seraphina"
+            autocomplete="off"
+          />
+        </div>
+        <div class="field">
+          <label for="player-combatant-type">Type</label>
+          <select id="player-combatant-type">
+            <option value="PC">PC</option>
+            <option value="NPC">NPC</option>
+          </select>
+        </div>
+        <div class="field" style="grid-column: 1 / -1;">
+          <label>Roll Mode</label>
+          <div class="radio-group" role="radiogroup" aria-label="Roll mode">
+            <label class="radio-option">
+              <input type="radio" name="player-roll-mode" value="manual" checked />
+              Manual roll
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="player-roll-mode" value="auto" />
+              Auto roll
+            </label>
+          </div>
+        </div>
+        <div class="field" data-player-mode="manual">
+          <label for="player-manual-initiative">Initiative Result</label>
+          <input
+            id="player-manual-initiative"
+            type="number"
+            inputmode="decimal"
+            placeholder="e.g. 16"
+          />
+        </div>
+        <div class="field" data-player-mode="auto" hidden>
+          <label for="player-auto-modifier">Initiative Modifier</label>
+          <input
+            id="player-auto-modifier"
+            type="number"
+            inputmode="decimal"
+            placeholder="e.g. 3 or -1"
+            value="0"
+          />
+        </div>
+        <div class="field" data-player-mode="auto" hidden>
+          <label for="player-auto-advantage">Roll Style</label>
+          <select id="player-auto-advantage">
+            <option value="neutral">Neutral</option>
+            <option value="adv">Advantage</option>
+            <option value="disadv">Disadvantage</option>
+          </select>
+        </div>
+        <div class="field" style="grid-column: 1 / -1;">
+          <button id="player-submit" type="button">Send to DM</button>
+          <p id="player-submit-error" class="error" role="alert"></p>
+          <p id="player-submit-status" class="player-status" role="status"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
   <script>
     const combatantNameInput = document.getElementById('combatant-name');
     const combatantTypeSelect = document.getElementById('combatant-type');
@@ -894,11 +1115,51 @@
     const addCombatantFromHpButton = document.getElementById('hp-add-combatant');
     const openCombatantEditorButton = document.getElementById('open-combatant-editor');
     const closeCombatantEditorButton = document.getElementById('combatant-editor-done');
+    const playerSessionStartButton = document.getElementById('player-session-start');
+    const playerSessionStopButton = document.getElementById('player-session-stop');
+    const playerSessionDetails = document.getElementById('player-session-details');
+    const playerSessionCodeDisplay = document.getElementById('player-session-code');
+    const playerSessionLinkInput = document.getElementById('player-session-link');
+    const copyPlayerSessionLinkButton = document.getElementById('copy-player-session-link');
+    const playerSessionStatus = document.getElementById('player-session-status');
+    const playerSessionWarning = document.getElementById('player-session-warning');
+    const playerApp = document.getElementById('player-app');
+    const playerSupportMessage = document.getElementById('player-view-support-message');
+    const playerSessionCodeInput = document.getElementById('player-session-code-input');
+    const playerSessionConnectButton = document.getElementById('player-session-connect');
+    const playerSessionConnectError = document.getElementById('player-session-connect-error');
+    const playerSessionConnectStatus = document.getElementById('player-session-connect-status');
+    const playerEntrySection = document.getElementById('player-entry-section');
+    const playerNameInput = document.getElementById('player-combatant-name');
+    const playerTypeSelect = document.getElementById('player-combatant-type');
+    const playerRollModeRadios = Array.from(
+      document.querySelectorAll('input[name="player-roll-mode"]')
+    );
+    const playerManualFields = document.querySelectorAll('[data-player-mode="manual"]');
+    const playerAutoFields = document.querySelectorAll('[data-player-mode="auto"]');
+    const playerManualInitiativeInput = document.getElementById('player-manual-initiative');
+    const playerAutoModifierInput = document.getElementById('player-auto-modifier');
+    const playerAutoAdvantageSelect = document.getElementById('player-auto-advantage');
+    const playerSubmitButton = document.getElementById('player-submit');
+    const playerSubmitError = document.getElementById('player-submit-error');
+    const playerSubmitStatus = document.getElementById('player-submit-status');
 
     const DECIMAL_FACTOR = 10000;
     const numberFormatter = new Intl.NumberFormat(undefined, {
       maximumFractionDigits: 4,
     });
+    const BROADCAST_SUPPORTED = typeof window.BroadcastChannel === 'function';
+    let isPlayerView = false;
+    let prefilledPlayerSessionCode = '';
+
+    try {
+      const url = new URL(window.location.href);
+      isPlayerView = url.searchParams.get('view') === 'player';
+      prefilledPlayerSessionCode = url.searchParams.get('session') ?? '';
+    } catch (error) {
+      isPlayerView = false;
+      prefilledPlayerSessionCode = '';
+    }
 
     const combatants = [];
     let combatantCounter = 0;
@@ -908,6 +1169,12 @@
     let storedActiveCombatantId = null;
     let storedActiveNpcId = null;
     let midEncounterReturnTarget = 'hp';
+    let playerSessionHost = null;
+    let playerChannel = null;
+    let playerHandshakeId = null;
+    let playerHandshakeTimeout = null;
+    let playerConnected = false;
+    const pendingPlayerSubmissions = new Map();
 
     function setFieldHiddenState(field, shouldHide) {
       field.hidden = shouldHide;
@@ -929,6 +1196,16 @@
       });
     }
 
+    function setPlayerFieldVisibility(mode) {
+      const isManual = mode === 'manual';
+      playerManualFields.forEach((field) => {
+        setFieldHiddenState(field, !isManual);
+      });
+      playerAutoFields.forEach((field) => {
+        setFieldHiddenState(field, isManual);
+      });
+    }
+
     rollModeRadios.forEach((radio) => {
       radio.addEventListener('change', (event) => {
         if (event.target.checked) {
@@ -939,8 +1216,600 @@
 
     setFieldVisibility(rollModeRadios.find((radio) => radio.checked)?.value ?? 'manual');
 
+    playerRollModeRadios.forEach((radio) => {
+      radio.addEventListener('change', (event) => {
+        if (event.target.checked) {
+          setPlayerFieldVisibility(event.target.value);
+        }
+      });
+    });
+
+    setPlayerFieldVisibility(
+      playerRollModeRadios.find((radio) => radio.checked)?.value ?? 'manual'
+    );
+
+    if (isPlayerView) {
+      if (initiativeApp) {
+        initiativeApp.hidden = true;
+      }
+      if (hpApp) {
+        hpApp.hidden = true;
+      }
+      if (combatantEditorApp) {
+        combatantEditorApp.hidden = true;
+      }
+      if (playerApp) {
+        playerApp.hidden = false;
+      }
+      document.title = 'Player Initiative Entry | DM Toolkit';
+    } else if (playerApp) {
+      playerApp.hidden = true;
+    }
+
+    if (playerSessionCodeInput && prefilledPlayerSessionCode) {
+      playerSessionCodeInput.value = prefilledPlayerSessionCode;
+    }
+
+    if (!BROADCAST_SUPPORTED) {
+      if (playerSessionStartButton) {
+        playerSessionStartButton.disabled = true;
+      }
+      if (playerSessionConnectButton) {
+        playerSessionConnectButton.disabled = true;
+      }
+      updateError(
+        playerSessionWarning,
+        'Player sharing requires a modern browser that supports BroadcastChannel.'
+      );
+      if (playerSupportMessage) {
+        playerSupportMessage.textContent =
+          'This browser does not support shared initiative sessions.';
+      }
+    } else {
+      updateError(playerSessionWarning, '');
+      if (playerSupportMessage && isPlayerView) {
+        playerSupportMessage.textContent =
+          'Enter the session code from your DM to share your initiative instantly.';
+      }
+      if (playerSessionConnectButton) {
+        playerSessionConnectButton.disabled = false;
+      }
+    }
+
+    setPlayerSessionControlsActive(false);
+
+    if (playerSessionStartButton) {
+      playerSessionStartButton.addEventListener('click', startPlayerSession);
+    }
+
+    if (playerSessionStopButton) {
+      playerSessionStopButton.addEventListener('click', () => {
+        stopPlayerSession({ silent: false });
+      });
+    }
+
+    if (copyPlayerSessionLinkButton) {
+      copyPlayerSessionLinkButton.addEventListener('click', copyPlayerSessionLink);
+    }
+
+    if (playerSessionConnectButton) {
+      playerSessionConnectButton.addEventListener('click', connectToPlayerSession);
+    }
+
+    if (playerSessionCodeInput) {
+      playerSessionCodeInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          connectToPlayerSession();
+        }
+      });
+    }
+
+    if (playerSubmitButton) {
+      playerSubmitButton.addEventListener('click', sendPlayerSubmission);
+    }
+
+    if (playerManualInitiativeInput) {
+      playerManualInitiativeInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          sendPlayerSubmission();
+        }
+      });
+    }
+
+    if (playerAutoModifierInput) {
+      playerAutoModifierInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          sendPlayerSubmission();
+        }
+      });
+    }
+
+    window.addEventListener('beforeunload', () => {
+      if (playerSessionHost) {
+        stopPlayerSession({ silent: true });
+      }
+      resetPlayerConnectionState();
+    });
+
     function randomD20() {
       return Math.floor(Math.random() * 20) + 1;
+    }
+
+    function rollAutoInitiative(modifier, rollStyle) {
+      const rollOne = randomD20();
+      let chosenRoll = rollOne;
+      let rollSummary = `Rolled ${rollOne}`;
+
+      if (rollStyle === 'adv' || rollStyle === 'disadv') {
+        const rollTwo = randomD20();
+        if (rollStyle === 'adv') {
+          chosenRoll = Math.max(rollOne, rollTwo);
+          rollSummary = `Rolled ${rollOne} & ${rollTwo} (adv) → ${chosenRoll}`;
+        } else {
+          chosenRoll = Math.min(rollOne, rollTwo);
+          rollSummary = `Rolled ${rollOne} & ${rollTwo} (disadv) → ${chosenRoll}`;
+        }
+      }
+
+      const detail =
+        modifier === 0
+          ? `${rollSummary}`
+          : `${rollSummary} + ${modifier >= 0 ? modifier : `(${modifier})`}`;
+
+      return {
+        total: chosenRoll + modifier,
+        detail,
+      };
+    }
+
+    function createRandomId() {
+      if (typeof window.crypto === 'object' && typeof window.crypto.randomUUID === 'function') {
+        return window.crypto.randomUUID();
+      }
+      return `id-${Math.random().toString(36).slice(2, 10)}`;
+    }
+
+    function generateSessionCode() {
+      const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let result = '';
+      for (let index = 0; index < 6; index += 1) {
+        const randomIndex = Math.floor(Math.random() * alphabet.length);
+        result += alphabet[randomIndex];
+      }
+      return result;
+    }
+
+    function buildPlayerSessionLink(code) {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('view', 'player');
+        url.searchParams.set('session', code);
+        url.hash = '';
+        return url.toString();
+      } catch (error) {
+        const base = window.location.pathname || '';
+        return `${base}?view=player&session=${encodeURIComponent(code)}`;
+      }
+    }
+
+    function disconnectPlayerChannel() {
+      if (playerChannel) {
+        playerChannel.close();
+      }
+      playerChannel = null;
+    }
+
+    function setPlayerSessionControlsActive(isActive) {
+      if (playerSessionStartButton) {
+        playerSessionStartButton.hidden = isActive;
+        playerSessionStartButton.disabled = !BROADCAST_SUPPORTED;
+      }
+      if (playerSessionStopButton) {
+        playerSessionStopButton.hidden = !isActive;
+      }
+      if (playerSessionDetails) {
+        playerSessionDetails.hidden = !isActive;
+      }
+    }
+
+    function sendHostStatus(message) {
+      updateStatus(playerSessionStatus, message);
+    }
+
+    function stopPlayerSession(options = {}) {
+      if (!playerSessionHost) {
+        return;
+      }
+
+      const { silent } = options;
+      try {
+        if (!silent) {
+          playerSessionHost.channel.postMessage({ type: 'session-closed' });
+        }
+        playerSessionHost.channel.close();
+      } catch (error) {
+        console.error('Failed to close player session channel', error);
+      }
+
+      playerSessionHost = null;
+      setPlayerSessionControlsActive(false);
+      if (playerSessionCodeDisplay) {
+        playerSessionCodeDisplay.textContent = '';
+      }
+      if (playerSessionLinkInput) {
+        playerSessionLinkInput.value = '';
+      }
+      sendHostStatus('Player entry disabled.');
+    }
+
+    function handlePlayerSubmissionMessage(data) {
+      if (!playerSessionHost) {
+        return;
+      }
+
+      const submissionId = data?.submissionId;
+      const combatant = data?.combatant;
+      if (!submissionId || !combatant) {
+        return;
+      }
+
+      if (playerSessionHost.processedIds.has(submissionId)) {
+        return;
+      }
+
+      playerSessionHost.processedIds.add(submissionId);
+
+      const rawInitiative = Number(combatant.initiative);
+      if (!Number.isFinite(rawInitiative)) {
+        playerSessionHost.channel.postMessage({
+          type: 'submission-ack',
+          submissionId,
+          status: 'error',
+          message: 'Invalid initiative value.',
+        });
+        sendHostStatus('Received an invalid initiative submission.');
+        return;
+      }
+
+      const combatantType = combatant.type === 'NPC' ? 'NPC' : 'PC';
+      const name = typeof combatant.name === 'string' ? combatant.name.trim() : '';
+      const details =
+        typeof combatant.details === 'string' && combatant.details.trim() !== ''
+          ? combatant.details
+          : 'Player submission';
+
+      pushCombatant({
+        name,
+        type: combatantType,
+        initiative: rawInitiative,
+        details,
+      });
+
+      clearInitiativeError();
+      renderInitiativeTable();
+      sendHostStatus(
+        `Received ${name || 'a combatant'} from a player.`
+      );
+      playerSessionHost.channel.postMessage({
+        type: 'submission-ack',
+        submissionId,
+        status: 'accepted',
+      });
+    }
+
+    function startPlayerSession() {
+      if (!BROADCAST_SUPPORTED) {
+        updateError(
+          playerSessionWarning,
+          'Player sharing is not supported in this browser.'
+        );
+        return;
+      }
+
+      if (playerSessionHost) {
+        return;
+      }
+
+      const code = generateSessionCode();
+      let channel;
+      try {
+        channel = new BroadcastChannel(`dm-tool-session-${code}`);
+      } catch (error) {
+        console.error('Failed to create player session channel', error);
+        updateError(playerSessionWarning, 'Unable to start player session. Try again.');
+        return;
+      }
+
+      playerSessionHost = {
+        code,
+        channel,
+        processedIds: new Set(),
+      };
+
+      channel.addEventListener('message', (event) => {
+        const data = event.data;
+        if (!data || typeof data !== 'object') {
+          return;
+        }
+
+        if (data.type === 'hello' && data.handshakeId) {
+          channel.postMessage({ type: 'hello-ack', handshakeId: data.handshakeId });
+          sendHostStatus('A player connected to the session.');
+        } else if (data.type === 'submission') {
+          handlePlayerSubmissionMessage(data);
+        }
+      });
+
+      setPlayerSessionControlsActive(true);
+      updateError(playerSessionWarning, '');
+      if (playerSessionCodeDisplay) {
+        playerSessionCodeDisplay.textContent = code;
+      }
+      if (playerSessionLinkInput) {
+        playerSessionLinkInput.value = buildPlayerSessionLink(code);
+      }
+      sendHostStatus('Player entry enabled. Waiting for submissions…');
+    }
+
+    async function copyPlayerSessionLink() {
+      if (!playerSessionLinkInput) {
+        return;
+      }
+
+      const linkValue = playerSessionLinkInput.value.trim();
+      if (!linkValue) {
+        return;
+      }
+
+      try {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          await navigator.clipboard.writeText(linkValue);
+        } else {
+          playerSessionLinkInput.focus();
+          playerSessionLinkInput.select();
+          document.execCommand('copy');
+        }
+        sendHostStatus('Join link copied to your clipboard.');
+      } catch (error) {
+        console.error('Failed to copy player session link', error);
+        updateError(playerSessionWarning, 'Unable to copy the link automatically.');
+      } finally {
+        playerSessionLinkInput.setSelectionRange(linkValue.length, linkValue.length);
+      }
+    }
+
+    function clearPlayerHandshakeTimer() {
+      if (playerHandshakeTimeout) {
+        window.clearTimeout(playerHandshakeTimeout);
+        playerHandshakeTimeout = null;
+      }
+    }
+
+    function resetPlayerConnectionState() {
+      pendingPlayerSubmissions.forEach(({ timeoutId }) => {
+        window.clearTimeout(timeoutId);
+      });
+      pendingPlayerSubmissions.clear();
+      disconnectPlayerChannel();
+      clearPlayerHandshakeTimer();
+      playerHandshakeId = null;
+      playerConnected = false;
+    }
+
+    function handlePlayerChannelMessage(event) {
+      const data = event.data;
+      if (!data || typeof data !== 'object') {
+        return;
+      }
+
+      if (data.type === 'hello-ack' && data.handshakeId === playerHandshakeId) {
+        clearPlayerHandshakeTimer();
+        playerConnected = true;
+        updateError(playerSessionConnectError, '');
+        updateStatus(
+          playerSessionConnectStatus,
+          'Connected! Submit your initiative below.'
+        );
+        if (playerEntrySection) {
+          playerEntrySection.hidden = false;
+        }
+        updateStatus(playerSubmitStatus, '');
+      } else if (data.type === 'submission-ack') {
+        const record = pendingPlayerSubmissions.get(data.submissionId);
+        if (!record) {
+          return;
+        }
+
+        window.clearTimeout(record.timeoutId);
+        pendingPlayerSubmissions.delete(data.submissionId);
+
+        if (data.status === 'accepted') {
+          updateError(playerSubmitError, '');
+          updateStatus(
+            playerSubmitStatus,
+            'Sent! Your initiative is now with the DM.'
+          );
+          if (playerManualInitiativeInput) {
+            playerManualInitiativeInput.value = '';
+          }
+          if (playerAutoModifierInput) {
+            playerAutoModifierInput.value = '0';
+          }
+        } else {
+          updateError(
+            playerSubmitError,
+            data.message || 'The DM could not accept your submission.'
+          );
+          updateStatus(playerSubmitStatus, '');
+        }
+      } else if (data.type === 'session-closed') {
+        updateStatus(
+          playerSessionConnectStatus,
+          'The DM closed the session. Ask for a new code to reconnect.'
+        );
+        if (playerEntrySection) {
+          playerEntrySection.hidden = true;
+        }
+        resetPlayerConnectionState();
+        updateStatus(playerSubmitStatus, '');
+      }
+    }
+
+    function connectToPlayerSession() {
+      if (!playerSessionCodeInput) {
+        return;
+      }
+
+      if (!BROADCAST_SUPPORTED) {
+        updateError(
+          playerSessionConnectError,
+          'This browser cannot join shared sessions. Please try a different browser.'
+        );
+        return;
+      }
+
+      const rawCode = playerSessionCodeInput.value.trim();
+      if (rawCode === '') {
+        updateError(playerSessionConnectError, 'Enter the session code from your DM.');
+        return;
+      }
+
+      const normalizedCode = rawCode.replace(/[^0-9a-z]/gi, '').toUpperCase();
+      if (normalizedCode.length === 0) {
+        updateError(playerSessionConnectError, 'Enter the session code from your DM.');
+        return;
+      }
+
+      playerSessionCodeInput.value = normalizedCode;
+
+      resetPlayerConnectionState();
+      updateError(playerSessionConnectError, '');
+      updateError(playerSubmitError, '');
+      updateStatus(playerSubmitStatus, '');
+      if (playerEntrySection) {
+        playerEntrySection.hidden = true;
+      }
+
+      try {
+        playerChannel = new BroadcastChannel(`dm-tool-session-${normalizedCode}`);
+      } catch (error) {
+        console.error('Failed to join DM session', error);
+        updateError(
+          playerSessionConnectError,
+          'Unable to join the session. Double-check the code and try again.'
+        );
+        return;
+      }
+
+      playerChannel.addEventListener('message', handlePlayerChannelMessage);
+      playerHandshakeId = createRandomId();
+      playerHandshakeTimeout = window.setTimeout(() => {
+        updateError(
+          playerSessionConnectError,
+          'No response from the DM. Confirm the code and try again.'
+        );
+        updateStatus(playerSessionConnectStatus, '');
+        resetPlayerConnectionState();
+      }, 5000);
+      updateStatus(playerSessionConnectStatus, 'Contacting the DM…');
+      try {
+        playerChannel.postMessage({ type: 'hello', handshakeId: playerHandshakeId });
+      } catch (error) {
+        console.error('Failed to send hello message to DM', error);
+        updateError(
+          playerSessionConnectError,
+          'Unable to contact the DM. Try reconnecting.'
+        );
+        updateStatus(playerSessionConnectStatus, '');
+        resetPlayerConnectionState();
+      }
+    }
+
+    function sendPlayerSubmission() {
+      if (!isPlayerView) {
+        return;
+      }
+
+      if (!playerChannel || !playerConnected) {
+        updateError(
+          playerSubmitError,
+          'Connect to your DM before sending your initiative.'
+        );
+        return;
+      }
+
+      updateError(playerSubmitError, '');
+      updateStatus(playerSubmitStatus, '');
+
+      const name = playerNameInput ? playerNameInput.value.trim() : '';
+      const type = playerTypeSelect?.value === 'NPC' ? 'NPC' : 'PC';
+      const mode =
+        playerRollModeRadios.find((radio) => radio.checked)?.value ?? 'manual';
+
+      let initiativeValue = Number.NaN;
+      let details = 'Player submission';
+
+      if (mode === 'manual') {
+        const rawInitiative = playerManualInitiativeInput?.value.trim() ?? '';
+        if (rawInitiative === '') {
+          initiativeValue = randomD20();
+          details = 'Player manual entry (randomized)';
+        } else {
+          const parsed = Number(rawInitiative);
+          if (!Number.isFinite(parsed)) {
+            updateError(playerSubmitError, 'Enter a valid number for initiative.');
+            playerManualInitiativeInput?.focus();
+            return;
+          }
+          initiativeValue = parsed;
+          details = 'Player manual entry';
+        }
+      } else {
+        const rawModifier = playerAutoModifierInput?.value.trim() ?? '';
+        const modifier = rawModifier === '' ? 0 : Number(rawModifier);
+        if (!Number.isFinite(modifier)) {
+          updateError(playerSubmitError, 'Enter a numeric initiative modifier.');
+          playerAutoModifierInput?.focus();
+          return;
+        }
+        const rollStyle = playerAutoAdvantageSelect?.value ?? 'neutral';
+        const { total, detail } = rollAutoInitiative(modifier, rollStyle);
+        initiativeValue = total;
+        details = `Player auto roll — ${detail}`;
+      }
+
+      const submissionId = createRandomId();
+      try {
+        playerChannel.postMessage({
+          type: 'submission',
+          submissionId,
+          combatant: {
+            name,
+            type,
+            initiative: initiativeValue,
+            details,
+          },
+        });
+      } catch (error) {
+        console.error('Failed to send initiative submission', error);
+        updateError(
+          playerSubmitError,
+          'Unable to send your initiative. Try reconnecting to the session.'
+        );
+        return;
+      }
+
+      updateStatus(playerSubmitStatus, 'Sent to your DM… awaiting confirmation.');
+      const timeoutId = window.setTimeout(() => {
+        pendingPlayerSubmissions.delete(submissionId);
+        updateError(
+          playerSubmitError,
+          'Timed out waiting for the DM. Make sure they are still connected.'
+        );
+        updateStatus(playerSubmitStatus, '');
+      }, 6000);
+
+      pendingPlayerSubmissions.set(submissionId, { timeoutId });
     }
 
     function clearInitiativeError() {
@@ -951,6 +1820,21 @@
     function showInitiativeError(message) {
       initiativeError.textContent = message;
       initiativeError.style.display = 'block';
+    }
+
+    function updateError(element, message) {
+      if (!element) {
+        return;
+      }
+      element.textContent = message ?? '';
+      element.style.display = message ? 'block' : 'none';
+    }
+
+    function updateStatus(element, message) {
+      if (!element) {
+        return;
+      }
+      element.textContent = message ?? '';
     }
 
     function formatCombatantName(combatant, index) {
@@ -1027,29 +1911,12 @@
         }
 
         const rollStyle = autoAdvantageSelect.value;
-        const rollOne = randomD20();
-        let chosenRoll = rollOne;
-        let rollSummary = `Rolled ${rollOne}`;
-
-        if (rollStyle === 'adv' || rollStyle === 'disadv') {
-          const rollTwo = randomD20();
-          if (rollStyle === 'adv') {
-            chosenRoll = Math.max(rollOne, rollTwo);
-            rollSummary = `Rolled ${rollOne} & ${rollTwo} (adv) → ${chosenRoll}`;
-          } else {
-            chosenRoll = Math.min(rollOne, rollTwo);
-            rollSummary = `Rolled ${rollOne} & ${rollTwo} (disadv) → ${chosenRoll}`;
-          }
-        }
-
+        const { total, detail } = rollAutoInitiative(modifier, rollStyle);
         pushCombatant({
           name,
           type,
-          initiative: chosenRoll + modifier,
-          details:
-            modifier === 0
-              ? `${rollSummary}`
-              : `${rollSummary} + ${modifier >= 0 ? modifier : `(${modifier})`}`,
+          initiative: total,
+          details: detail,
         });
       }
 
