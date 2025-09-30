@@ -1173,6 +1173,7 @@
     let playerChannel = null;
     let playerHandshakeId = null;
     let playerHandshakeTimeout = null;
+    let playerHandshakeInterval = null;
     let playerConnected = false;
     const pendingPlayerSubmissions = new Map();
 
@@ -1585,6 +1586,13 @@
       }
     }
 
+    function clearPlayerHandshakeInterval() {
+      if (playerHandshakeInterval) {
+        window.clearInterval(playerHandshakeInterval);
+        playerHandshakeInterval = null;
+      }
+    }
+
     function resetPlayerConnectionState() {
       pendingPlayerSubmissions.forEach(({ timeoutId }) => {
         window.clearTimeout(timeoutId);
@@ -1592,6 +1600,7 @@
       pendingPlayerSubmissions.clear();
       disconnectPlayerChannel();
       clearPlayerHandshakeTimer();
+      clearPlayerHandshakeInterval();
       playerHandshakeId = null;
       playerConnected = false;
     }
@@ -1604,6 +1613,7 @@
 
       if (data.type === 'hello-ack' && data.handshakeId === playerHandshakeId) {
         clearPlayerHandshakeTimer();
+        clearPlayerHandshakeInterval();
         playerConnected = true;
         updateError(playerSessionConnectError, '');
         updateStatus(
@@ -1704,16 +1714,42 @@
       playerChannel.addEventListener('message', handlePlayerChannelMessage);
       playerHandshakeId = createRandomId();
       playerHandshakeTimeout = window.setTimeout(() => {
+        clearPlayerHandshakeInterval();
         updateError(
           playerSessionConnectError,
-          'No response from the DM. Confirm the code and try again.'
+          'No response from the DM. Confirm the code and make sure the DM still has the session open.'
         );
         updateStatus(playerSessionConnectStatus, '');
         resetPlayerConnectionState();
       }, 5000);
       updateStatus(playerSessionConnectStatus, 'Contacting the DM…');
       try {
-        playerChannel.postMessage({ type: 'hello', handshakeId: playerHandshakeId });
+        const sendHello = () => {
+          try {
+            playerChannel.postMessage({ type: 'hello', handshakeId: playerHandshakeId });
+          } catch (error) {
+            console.error('Failed to send hello message to DM', error);
+            updateError(
+              playerSessionConnectError,
+              'Unable to contact the DM. Try reconnecting.'
+            );
+            updateStatus(playerSessionConnectStatus, '');
+            resetPlayerConnectionState();
+          }
+        };
+
+        sendHello();
+        if (!playerChannel) {
+          return;
+        }
+
+        playerHandshakeInterval = window.setInterval(() => {
+          if (playerConnected) {
+            clearPlayerHandshakeInterval();
+            return;
+          }
+          sendHello();
+        }, 1500);
       } catch (error) {
         console.error('Failed to send hello message to DM', error);
         updateError(
