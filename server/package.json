@@ -1,0 +1,13 @@
+{
+  "name": "dm-tool-server",
+  "version": "1.0.0",
+  "description": "WebSocket relay server for DM Toolkit player sessions.",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

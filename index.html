@@ -1200,7 +1200,8 @@
     const numberFormatter = new Intl.NumberFormat(undefined, {
       maximumFractionDigits: 4,
     });
-    const BROADCAST_SUPPORTED = typeof window.BroadcastChannel === 'function';
+    const SOCKET_SUPPORTED = typeof window.WebSocket === 'function';
+    const SOCKET_URL = resolveSocketUrl();
     let isPlayerView = false;
     let prefilledPlayerSessionCode = '';
 
@@ -1225,7 +1226,10 @@
     let storedActiveNpcId = null;
     let midEncounterReturnTarget = 'hp';
     let playerSessionHost = null;
-    let playerChannel = null;
+    let playerSocket = null;
+    let playerConnectionCode = '';
+    let playerConnectionId = null;
+    let playerSocketClosing = false;
     let playerHandshakeId = null;
     let playerHandshakeTimeout = null;
     let playerHandshakeInterval = null;
@@ -1306,7 +1310,7 @@
       playerSessionCodeInput.value = prefilledPlayerSessionCode;
     }
 
-    if (!BROADCAST_SUPPORTED) {
+    if (!SOCKET_SUPPORTED) {
       if (playerSessionStartButton) {
         playerSessionStartButton.disabled = true;
       }
@@ -1315,7 +1319,7 @@
       }
       updateError(
         playerSessionWarning,
-        'Player sharing requires a modern browser that supports BroadcastChannel.'
+        'Player sharing requires a modern browser that supports WebSockets.'
       );
       if (playerSupportMessage) {
         playerSupportMessage.textContent =
@@ -1418,6 +1422,29 @@
       };
     }
 
+    function resolveSocketUrl() {
+      const override =
+        typeof window !== 'undefined' ? window.DM_TOOL_SOCKET_URL : undefined;
+      if (typeof override === 'string' && override.trim() !== '') {
+        return override.trim();
+      }
+
+      try {
+        const current = new URL(window.location.href);
+        const protocol = current.protocol === 'https:' ? 'wss:' : 'ws:';
+        current.protocol = protocol;
+        if (!current.port) {
+          current.port = protocol === 'wss:' ? '443' : '3001';
+        }
+        current.pathname = '/ws';
+        current.search = '';
+        current.hash = '';
+        return current.toString();
+      } catch (error) {
+        return 'ws://localhost:3001/ws';
+      }
+    }
+
     function createRandomId() {
       if (typeof window.crypto === 'object' && typeof window.crypto.randomUUID === 'function') {
         return window.crypto.randomUUID();
@@ -1448,17 +1475,37 @@
       }
     }
 
-    function disconnectPlayerChannel() {
-      if (playerChannel) {
-        playerChannel.close();
+    function sendSocketMessage(socket, message) {
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        return false;
       }
-      playerChannel = null;
+
+      try {
+        socket.send(JSON.stringify(message));
+        return true;
+      } catch (error) {
+        console.error('Failed to send socket message', error);
+        return false;
+      }
+    }
+
+    function disconnectPlayerSocket() {
+      if (playerSocket) {
+        try {
+          playerSocket.close();
+        } catch (error) {
+          console.error('Failed to close player socket', error);
+        }
+      }
+      playerSocket = null;
+      playerConnectionCode = '';
+      playerConnectionId = null;
     }
 
     function setPlayerSessionControlsActive(isActive) {
       if (playerSessionStartButton) {
         playerSessionStartButton.hidden = isActive;
-        playerSessionStartButton.disabled = !BROADCAST_SUPPORTED;
+        playerSessionStartButton.disabled = !SOCKET_SUPPORTED;
       }
       if (playerSessionStopButton) {
         playerSessionStopButton.hidden = !isActive;
@@ -1477,15 +1524,110 @@
         return;
       }
 
-      const { silent } = options;
-      try {
-        if (!silent) {
-          playerSessionHost.channel.postMessage({ type: 'session-closed' });
+      const session = playerSessionHost;
+      const { silent = false } = options;
+      session.closing = true;
+      session.silent = silent;
+      session.closeMessage = silent ? '' : '';
+
+      const socket = session.socket;
+      if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+        if (!silent && socket.readyState === WebSocket.OPEN) {
+          sendSocketMessage(socket, { type: 'close-session', code: session.code });
         }
-        playerSessionHost.channel.close();
-      } catch (error) {
-        console.error('Failed to close player session channel', error);
+        try {
+          socket.close();
+        } catch (error) {
+          console.error('Failed to close player session socket', error);
+        }
+      } else {
+        cleanupHostSession(session, {
+          silent,
+          errorMessage: '',
+          statusMessage: silent ? '' : 'Player entry disabled.',
+        });
       }
+    }
+
+    function sendHostRelay(playerId, payload) {
+      if (!playerSessionHost || !playerSessionHost.socket) {
+        return false;
+      }
+
+      return sendSocketMessage(playerSessionHost.socket, {
+        type: 'relay',
+        code: playerSessionHost.code,
+        playerId,
+        payload,
+      });
+    }
+
+    function handleHostRelayMessage(playerId, payload) {
+      if (!payload || typeof payload !== 'object') {
+        return;
+      }
+
+      if (payload.type === 'hello' && payload.handshakeId) {
+        sendHostRelay(playerId, { type: 'hello-ack', handshakeId: payload.handshakeId });
+        sendHostStatus('A player connected to the session.');
+      } else if (payload.type === 'submission') {
+        handlePlayerSubmissionMessage(payload, playerId);
+      }
+    }
+
+    function handleHostSocketMessage(session, rawMessage) {
+      if (playerSessionHost !== session) {
+        return;
+      }
+
+      let data = null;
+      try {
+        data = JSON.parse(rawMessage.data);
+      } catch (error) {
+        console.error('Failed to parse host socket message', error);
+        return;
+      }
+
+      if (!data || typeof data !== 'object') {
+        return;
+      }
+
+      if (data.type === 'session-created') {
+        updateError(playerSessionWarning, '');
+        setPlayerSessionControlsActive(true);
+        if (playerSessionCodeDisplay) {
+          playerSessionCodeDisplay.textContent = session.code;
+        }
+        if (playerSessionLinkInput) {
+          playerSessionLinkInput.value = buildPlayerSessionLink(session.code);
+        }
+        sendHostStatus('Player entry enabled. Waiting for submissions…');
+      } else if (data.type === 'session-error') {
+        const message =
+          typeof data.message === 'string'
+            ? data.message
+            : 'Unable to start player session. Try again.';
+        updateError(playerSessionWarning, message);
+        sendHostStatus('');
+        session.closing = true;
+        session.closeMessage = message;
+        session.silent = true;
+        if (session.socket.readyState === WebSocket.OPEN) {
+          session.socket.close();
+        }
+      } else if (data.type === 'relay') {
+        handleHostRelayMessage(data.playerId, data.payload);
+      } else if (data.type === 'player-left') {
+        sendHostStatus('A player disconnected from the session.');
+      }
+    }
+
+    function cleanupHostSession(session, options = {}) {
+      if (playerSessionHost !== session) {
+        return;
+      }
+
+      const { silent = false, errorMessage = null, statusMessage } = options;
 
       playerSessionHost = null;
       setPlayerSessionControlsActive(false);
@@ -1495,10 +1637,21 @@
       if (playerSessionLinkInput) {
         playerSessionLinkInput.value = '';
       }
-      sendHostStatus('Player entry disabled.');
+
+      if (errorMessage !== null) {
+        updateError(playerSessionWarning, errorMessage);
+      }
+
+      if (typeof statusMessage === 'string') {
+        sendHostStatus(statusMessage);
+      } else if (!silent) {
+        sendHostStatus('Player entry disabled.');
+      } else {
+        sendHostStatus('');
+      }
     }
 
-    function handlePlayerSubmissionMessage(data) {
+    function handlePlayerSubmissionMessage(data, playerId) {
       if (!playerSessionHost) {
         return;
       }
@@ -1517,7 +1670,7 @@
 
       const rawInitiative = Number(combatant.initiative);
       if (!Number.isFinite(rawInitiative)) {
-        playerSessionHost.channel.postMessage({
+        sendHostRelay(playerId, {
           type: 'submission-ack',
           submissionId,
           status: 'error',
@@ -1546,7 +1699,7 @@
       sendHostStatus(
         `Received ${name || 'a combatant'} from a player.`
       );
-      playerSessionHost.channel.postMessage({
+      sendHostRelay(playerId, {
         type: 'submission-ack',
         submissionId,
         status: 'accepted',
@@ -1554,7 +1707,7 @@
     }
 
     function startPlayerSession() {
-      if (!BROADCAST_SUPPORTED) {
+      if (!SOCKET_SUPPORTED) {
         updateError(
           playerSessionWarning,
           'Player sharing is not supported in this browser.'
@@ -1567,44 +1720,60 @@
       }
 
       const code = generateSessionCode();
-      let channel;
+      let socket;
       try {
-        channel = new BroadcastChannel(`dm-tool-session-${code}`);
+        socket = new WebSocket(SOCKET_URL);
       } catch (error) {
-        console.error('Failed to create player session channel', error);
+        console.error('Failed to create player session socket', error);
         updateError(playerSessionWarning, 'Unable to start player session. Try again.');
         return;
       }
 
-      playerSessionHost = {
+      const session = {
         code,
-        channel,
+        socket,
         processedIds: new Set(),
+        closing: false,
+        silent: false,
+        closeMessage: '',
       };
 
-      channel.addEventListener('message', (event) => {
-        const data = event.data;
-        if (!data || typeof data !== 'object') {
-          return;
-        }
+      playerSessionHost = session;
+      sendHostStatus('Connecting to the player session server…');
+      updateError(playerSessionWarning, '');
 
-        if (data.type === 'hello' && data.handshakeId) {
-          channel.postMessage({ type: 'hello-ack', handshakeId: data.handshakeId });
-          sendHostStatus('A player connected to the session.');
-        } else if (data.type === 'submission') {
-          handlePlayerSubmissionMessage(data);
+      socket.addEventListener('open', () => {
+        if (!sendSocketMessage(socket, { type: 'create-session', code })) {
+          session.closeMessage = 'Unable to start player session. Try again.';
+          socket.close();
         }
       });
 
-      setPlayerSessionControlsActive(true);
-      updateError(playerSessionWarning, '');
-      if (playerSessionCodeDisplay) {
-        playerSessionCodeDisplay.textContent = code;
-      }
-      if (playerSessionLinkInput) {
-        playerSessionLinkInput.value = buildPlayerSessionLink(code);
-      }
-      sendHostStatus('Player entry enabled. Waiting for submissions…');
+      socket.addEventListener('message', (event) => {
+        handleHostSocketMessage(session, event);
+      });
+
+      socket.addEventListener('close', () => {
+        const errorMessage = session.closing
+          ? session.closeMessage
+          : 'Connection to the player session server was lost. Restart sharing to accept new submissions.';
+        const statusMessage = session.closing && !session.silent ? 'Player entry disabled.' : undefined;
+        cleanupHostSession(session, {
+          silent: session.silent,
+          errorMessage,
+          statusMessage,
+        });
+      });
+
+      socket.addEventListener('error', (event) => {
+        console.error('Player session socket encountered an error', event);
+        if (!session.closing) {
+          updateError(
+            playerSessionWarning,
+            'Lost connection to the player session server.'
+          );
+        }
+      });
     }
 
     async function copyPlayerSessionLink() {
@@ -1648,63 +1817,151 @@
       }
     }
 
-    function resetPlayerConnectionState() {
+    function clearPlayerConnection(options = {}) {
+      const { closeSocket = false } = options;
+
       pendingPlayerSubmissions.forEach(({ timeoutId }) => {
         window.clearTimeout(timeoutId);
       });
       pendingPlayerSubmissions.clear();
-      disconnectPlayerChannel();
+      if (closeSocket) {
+        if (playerSocket) {
+          playerSocketClosing = true;
+          disconnectPlayerSocket();
+        } else {
+          playerSocketClosing = false;
+        }
+      } else {
+        playerSocket = null;
+        playerConnectionCode = '';
+        playerConnectionId = null;
+        playerSocketClosing = false;
+      }
       clearPlayerHandshakeTimer();
       clearPlayerHandshakeInterval();
       playerHandshakeId = null;
       playerConnected = false;
     }
 
-    function handlePlayerChannelMessage(event) {
-      const data = event.data;
+    function resetPlayerConnectionState() {
+      clearPlayerConnection({ closeSocket: true });
+    }
+
+    function handlePlayerSocketMessage(event) {
+      let data = null;
+      try {
+        data = JSON.parse(event.data);
+      } catch (error) {
+        console.error('Failed to parse player socket message', error);
+        return;
+      }
+
       if (!data || typeof data !== 'object') {
         return;
       }
 
-      if (data.type === 'hello-ack' && data.handshakeId === playerHandshakeId) {
+      if (data.type === 'session-joined') {
+        playerConnectionId = typeof data.playerId === 'string' ? data.playerId : null;
+        playerHandshakeId = createRandomId();
         clearPlayerHandshakeTimer();
         clearPlayerHandshakeInterval();
-        playerConnected = true;
-        updateError(playerSessionConnectError, '');
-        updateStatus(
-          playerSessionConnectStatus,
-          'Connected! Submit your initiative below.'
-        );
+        playerHandshakeTimeout = window.setTimeout(() => {
+          clearPlayerHandshakeInterval();
+          updateError(
+            playerSessionConnectError,
+            'No response from the DM. Confirm the code and make sure the DM still has the session open.'
+          );
+          updateStatus(playerSessionConnectStatus, '');
+          resetPlayerConnectionState();
+        }, 5000);
+        const sendHello = () => {
+          try {
+            sendPlayerRelay({ type: 'hello', handshakeId: playerHandshakeId });
+          } catch (error) {
+            console.error('Failed to send hello message to DM', error);
+            updateError(
+              playerSessionConnectError,
+              'Unable to contact the DM. Try reconnecting.'
+            );
+            updateStatus(playerSessionConnectStatus, '');
+            resetPlayerConnectionState();
+          }
+        };
+        sendHello();
+        playerHandshakeInterval = window.setInterval(() => {
+          if (playerConnected) {
+            clearPlayerHandshakeInterval();
+            return;
+          }
+          sendHello();
+        }, 1500);
+      } else if (data.type === 'session-error') {
+        const message =
+          typeof data.message === 'string'
+            ? data.message
+            : 'Unable to join the session. Double-check the code and try again.';
+        updateError(playerSessionConnectError, message);
+        updateStatus(playerSessionConnectStatus, '');
         if (playerEntrySection) {
-          playerEntrySection.hidden = false;
+          playerEntrySection.hidden = true;
         }
-        updateStatus(playerSubmitStatus, '');
-      } else if (data.type === 'submission-ack') {
-        const record = pendingPlayerSubmissions.get(data.submissionId);
-        if (!record) {
+        resetPlayerConnectionState();
+      } else if (data.type === 'relay') {
+        const payload = data.payload;
+        if (!payload || typeof payload !== 'object') {
           return;
         }
 
-        window.clearTimeout(record.timeoutId);
-        pendingPlayerSubmissions.delete(data.submissionId);
-
-        if (data.status === 'accepted') {
-          updateError(playerSubmitError, '');
+        if (payload.type === 'hello-ack' && payload.handshakeId === playerHandshakeId) {
+          clearPlayerHandshakeTimer();
+          clearPlayerHandshakeInterval();
+          playerConnected = true;
+          updateError(playerSessionConnectError, '');
           updateStatus(
-            playerSubmitStatus,
-            'Sent! Your initiative is now with the DM.'
+            playerSessionConnectStatus,
+            'Connected! Submit your initiative below.'
           );
-          if (playerManualInitiativeInput) {
-            playerManualInitiativeInput.value = '';
+          if (playerEntrySection) {
+            playerEntrySection.hidden = false;
           }
-          if (playerAutoModifierInput) {
-            playerAutoModifierInput.value = '0';
+          updateStatus(playerSubmitStatus, '');
+        } else if (payload.type === 'submission-ack') {
+          const record = pendingPlayerSubmissions.get(payload.submissionId);
+          if (!record) {
+            return;
           }
-        } else {
-          updateError(
-            playerSubmitError,
-            data.message || 'The DM could not accept your submission.'
+
+          window.clearTimeout(record.timeoutId);
+          pendingPlayerSubmissions.delete(payload.submissionId);
+
+          if (payload.status === 'accepted') {
+            updateError(playerSubmitError, '');
+            updateStatus(
+              playerSubmitStatus,
+              'Sent! Your initiative is now with the DM.'
+            );
+            if (playerManualInitiativeInput) {
+              playerManualInitiativeInput.value = '';
+            }
+            if (playerAutoModifierInput) {
+              playerAutoModifierInput.value = '0';
+            }
+          } else {
+            updateError(
+              playerSubmitError,
+              payload.message || 'The DM could not accept your submission.'
+            );
+            updateStatus(playerSubmitStatus, '');
+          }
+        } else if (payload.type === 'session-closed') {
+          updateStatus(
+            playerSessionConnectStatus,
+            'The DM closed the session. Ask for a new code to reconnect.'
           );
+          if (playerEntrySection) {
+            playerEntrySection.hidden = true;
+          }
+          resetPlayerConnectionState();
           updateStatus(playerSubmitStatus, '');
         }
       } else if (data.type === 'session-closed') {
@@ -1720,12 +1977,44 @@
       }
     }
 
+    function handlePlayerSocketClose() {
+      const wasIntentional = playerSocketClosing;
+      clearPlayerConnection({ closeSocket: false });
+
+      if (!wasIntentional) {
+        updateError(
+          playerSessionConnectError,
+          'Lost connection to the DM. Try reconnecting.'
+        );
+        updateStatus(playerSessionConnectStatus, '');
+        if (playerEntrySection) {
+          playerEntrySection.hidden = true;
+        }
+      }
+    }
+
+    function sendPlayerRelay(payload) {
+      if (!playerSocket) {
+        throw new Error('Player socket is not connected');
+      }
+
+      if (
+        !sendSocketMessage(playerSocket, {
+          type: 'relay',
+          code: playerConnectionCode,
+          payload,
+        })
+      ) {
+        throw new Error('Player socket is not ready');
+      }
+    }
+
     function connectToPlayerSession() {
       if (!playerSessionCodeInput) {
         return;
       }
 
-      if (!BROADCAST_SUPPORTED) {
+      if (!SOCKET_SUPPORTED) {
         updateError(
           playerSessionConnectError,
           'This browser cannot join shared sessions. Please try a different browser.'
@@ -1755,10 +2044,13 @@
         playerEntrySection.hidden = true;
       }
 
+      playerConnectionCode = normalizedCode;
+
+      let socket;
       try {
-        playerChannel = new BroadcastChannel(`dm-tool-session-${normalizedCode}`);
+        socket = new WebSocket(SOCKET_URL);
       } catch (error) {
-        console.error('Failed to join DM session', error);
+        console.error('Failed to open player session socket', error);
         updateError(
           playerSessionConnectError,
           'Unable to join the session. Double-check the code and try again.'
@@ -1766,54 +2058,37 @@
         return;
       }
 
-      playerChannel.addEventListener('message', handlePlayerChannelMessage);
-      playerHandshakeId = createRandomId();
-      playerHandshakeTimeout = window.setTimeout(() => {
-        clearPlayerHandshakeInterval();
-        updateError(
-          playerSessionConnectError,
-          'No response from the DM. Confirm the code and make sure the DM still has the session open.'
-        );
-        updateStatus(playerSessionConnectStatus, '');
-        resetPlayerConnectionState();
-      }, 5000);
-      updateStatus(playerSessionConnectStatus, 'Contacting the DM…');
-      try {
-        const sendHello = () => {
-          try {
-            playerChannel.postMessage({ type: 'hello', handshakeId: playerHandshakeId });
-          } catch (error) {
-            console.error('Failed to send hello message to DM', error);
-            updateError(
-              playerSessionConnectError,
-              'Unable to contact the DM. Try reconnecting.'
-            );
-            updateStatus(playerSessionConnectStatus, '');
-            resetPlayerConnectionState();
-          }
-        };
+      playerSocket = socket;
+      playerSocketClosing = false;
+      updateStatus(playerSessionConnectStatus, 'Connecting to the DM…');
 
-        sendHello();
-        if (!playerChannel) {
-          return;
+      socket.addEventListener('open', () => {
+        if (
+          !sendSocketMessage(socket, { type: 'join-session', code: normalizedCode })
+        ) {
+          updateError(
+            playerSessionConnectError,
+            'Unable to join the session. Double-check the code and try again.'
+          );
+          updateStatus(playerSessionConnectStatus, '');
+          playerSocketClosing = true;
+          socket.close();
+        } else {
+          updateStatus(playerSessionConnectStatus, 'Contacting the DM…');
         }
+      });
 
-        playerHandshakeInterval = window.setInterval(() => {
-          if (playerConnected) {
-            clearPlayerHandshakeInterval();
-            return;
-          }
-          sendHello();
-        }, 1500);
-      } catch (error) {
-        console.error('Failed to send hello message to DM', error);
-        updateError(
-          playerSessionConnectError,
-          'Unable to contact the DM. Try reconnecting.'
-        );
-        updateStatus(playerSessionConnectStatus, '');
-        resetPlayerConnectionState();
-      }
+      socket.addEventListener('message', handlePlayerSocketMessage);
+      socket.addEventListener('close', handlePlayerSocketClose);
+      socket.addEventListener('error', (event) => {
+        console.error('Player session socket encountered an error', event);
+        if (!playerSocketClosing) {
+          updateError(
+            playerSessionConnectError,
+            'Lost connection to the DM. Try reconnecting.'
+          );
+        }
+      });
     }
 
     function sendPlayerSubmission() {
@@ -1821,7 +2096,7 @@
         return;
       }
 
-      if (!playerChannel || !playerConnected) {
+      if (!playerSocket || playerSocket.readyState !== WebSocket.OPEN || !playerConnected) {
         updateError(
           playerSubmitError,
           'Connect to your DM before sending your initiative.'
@@ -1871,7 +2146,7 @@
 
       const submissionId = createRandomId();
       try {
-        playerChannel.postMessage({
+        sendPlayerRelay({
           type: 'submission',
           submissionId,
           combatant: {
